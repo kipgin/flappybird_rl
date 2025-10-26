@@ -68,16 +68,20 @@ def train():
     print(f"Bat dau train DQN voi game: {env_id}")
     print(f"Total epochs: {training_episodes}")
     
-    epsilons = [epsilon_init]
-    last_element = epsilon_init
-    for x in range(training_episodes):
-        if(x == 0):
-            continue
-        item = max(last_element*epsilon_decay,epsilon_min)
-        epsilons.append(item)
-        last_element = item
+    # epsilons = [epsilon_init]
+    # last_element = epsilon_init
+    # for x in range(training_episodes):
+    #     if(x == 0):
+    #         continue
+    #     item = max(last_element*epsilon_decay,epsilon_min)
+    #     epsilons.append(item)
+    #     last_element = item
     
-    epsilons = torch.tensor(epsilons,dtype=torch.float, device=device)
+    # epsilons = torch.tensor(epsilons,dtype=torch.float, device=device)
+    # print(epsilons)
+    # return 0
+
+    epsilon = epsilon_init
 
     episode_rewards = []
     episode_lengths = []
@@ -92,18 +96,19 @@ def train():
         episode_length = 0
 
         losses_in_episode =[]
-        
-        while(done == False):
+        done = 0
+        while(done == 0):
             # optimizer = agent.optimizer
             # if torch.rand(1).item() < 1 :
-            if torch.rand(1).item() < epsilons[epoch] :
+            if torch.rand(1).item() < epsilon :
                 action = env.action_space.sample()
                 action = torch.tensor(action,dtype = torch.int64,device= device)
             
 
             else:
                 with torch.no_grad():
-                    action = agent(state.unsqueeze(dim=0)).squeeze().argmax()
+                    # action = agent(state.unsqueeze(dim=0)).squeeze().argmax()
+                    action = agent(state).argmax()
 
             # print(action)
             # print(type(action))
@@ -121,6 +126,8 @@ def train():
             done = torch.tensor(done, dtype=torch.int64, device=device)
             action = torch.tensor(action, dtype=torch.int64, device=device)
 
+            # epsilon = max(epsilon*epsilon_decay,epsilon_min)
+
             transition = (state, action, reward, next_state, done)
             
             buffer.add(transition)
@@ -131,6 +138,7 @@ def train():
             if buffer.real_size >= mini_batch_size :
                 mini_batch = buffer.sample()
                 states,actions,rewards,next_states,dones = mini_batch
+                target_q = None
                 with torch.no_grad():
                     if enable_double_dqn:
                         best_actions_from_policy = agent(next_states).argmax(dim=1)
@@ -139,8 +147,10 @@ def train():
                     else:
                         target_q = rewards + (1-dones) * discount_factor_g * target_agent(next_states).max(dim=1)[0]
 
+                # print(states)
                 current_q = agent(states).gather(dim=1, index=actions.unsqueeze(dim=1)).squeeze()
-
+                # print(current_q)
+                # return 0
                 loss = loss_fn(current_q, target_q)
                 losses_in_episode.append(loss.item())
                 optimizer.zero_grad()  
@@ -152,12 +162,17 @@ def train():
                     # print(50*"=" + "UPDATING.....")
                     target_agent.load_state_dict(agent.state_dict()) 
                     cnt = 0
+                    # epsilon = max(epsilon*epsilon_decay,epsilon_min)
+            
+            state = next_state
   
         avg_loss = np.mean(losses_in_episode)
         losses.append(avg_loss)
         episode_lengths.append(episode_length)
         episode_rewards.append(episode_reward)
-         
+
+        epsilon = max(epsilon*epsilon_decay,epsilon_min)
+
         log_performance(
             epoch=epoch,
             avg_reward=episode_rewards[epoch],

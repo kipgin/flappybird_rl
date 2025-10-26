@@ -17,11 +17,11 @@ cartpole1:
 flappybird1:
   env_id: FlappyBird-v0
   replay_memory_size: 100000
-  mini_batch_size: 64
+  mini_batch_size: 32
   epsilon_init: 1
-  epsilon_decay: 0.99_99_5
+  epsilon_decay: 0.995
   epsilon_min: 0.05
-  network_sync_rate: 128
+  network_sync_rate: 64
   learning_rate_a: 0.0001
   discount_factor_g: 0.99
   stop_on_reward: 100000
@@ -32,7 +32,18 @@ flappybird1:
   enable_double_dqn: False
   enable_dueling_dqn: False
   training_episodes: 1000000
-
+  #CNN encoder
+  frame_stack: 4             
+  input_channels: 4          
+  conv_channels: [32, 64, 64]
+  kernel_sizes: [8, 4, 3]    
+  strides: [4, 2, 1]         
+  paddings: [0, 0, 0]       
+  hidden_size: 512          
+  activation: "relu"         
+  normalize_obs: true        
+  grayscale: true           
+  frame_skip: 1 
 #flappybird ppo
 
 ppo_flappybird:
@@ -53,8 +64,6 @@ ppo_flappybird:
   num_steps: 256           
   gamma: 0.99              
   gae_lambda: 0.95         
-
-
   #CNN encoder
   frame_stack: 4             
   input_channels: 4          
@@ -66,7 +75,9 @@ ppo_flappybird:
   activation: "relu"         
   normalize_obs: true        
   grayscale: true           
-  frame_skip: 1              
+  frame_skip: 1
+  env_make_params:
+    use_lidar: False          
 
 # dqn_flappybird:
 #   env_id: FlappyBird-v0
@@ -76,3 +87,33 @@ ppo_flappybird:
 #flappybird policy_gradient
 policy_gradient_flappybird:
   env_id: FlappyBird-v0
+  num_envs: 4                    
+  vf_coef: 0.5             
+  ent_coef: 0.01           
+  lr: 0.0001               
+  max_grad_norm: 0.5       
+  update_epochs: 4         
+  num_minibatches: 4       
+  state_dim: 12
+  action_dim: 2
+  hidden_dim: 128          
+  total_epochs: 10000     
+  device: "cpu"            
+  num_steps: 256           
+  gamma: 0.99              
+  gae_lambda: 0.95         
+  #CNN encoder
+  frame_stack: 4             
+  input_channels: 4          
+  conv_channels: [32, 64, 64]
+  kernel_sizes: [8, 4, 3]    
+  strides: [4, 2, 1]         
+  paddings: [0, 0, 0]       
+  hidden_size: 512          
+  activation: "relu"         
+  normalize_obs: true        
+  grayscale: true           
+  frame_skip: 1
+
+  env_make_params:
+    use_lidar: False

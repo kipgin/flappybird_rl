@@ -86,21 +86,21 @@ def train():
     for epoch in range(total_epochs):
         for step in range(num_steps):
             with torch.no_grad():
-                action, logprob, _, value = agent.get_action_and_value(obs)
+                actions, logprobs, _, values = agent.get_action_and_value(obs)
             
-            next_obs, reward, done, truncated, info = envs.step(action.cpu().numpy())
+            next_obs, rewards, dones, truncated, info = envs.step(actions.cpu().numpy())
     
-            next_obs = torch.FloatTensor(next_obs).to(device)
-            reward = torch.FloatTensor(reward).to(device)
-            done = torch.FloatTensor(done).to(device)
+            next_obs = torch.tensor(next_obs,dtype=torch.float32).to(device)
+            rewards = torch.tensor(rewards,dtype=torch.float32).to(device)
+            dones = torch.tensor(dones,dtype = torch.int64).to(device)
             
-            buffer.add(obs, action, logprob, reward, done, value.flatten())
+            buffer.add(obs, actions, logprobs, rewards, dones, values)
             
-            current_episode_rewards += reward.cpu().numpy()
+            current_episode_rewards += rewards.cpu().numpy()
             current_episode_lengths += 1
             
             for i in range(num_envs):
-                if done[i] or truncated[i]:
+                if dones[i] or truncated[i]:
                     episode_rewards.append(current_episode_rewards[i])
                     episode_lengths.append(current_episode_lengths[i])
                     current_episode_rewards[i] = 0
@@ -109,9 +109,9 @@ def train():
             obs = next_obs
         
         with torch.no_grad():
-            last_value = agent.get_value(obs).flatten()
-            last_done = done
-            buffer.compute_returns_and_advantages(last_value, last_done, gamma, gae_lambda)
+            last_values = agent.get_value(obs).flatten()
+            last_dones = dones
+            buffer.compute_returns_and_advantages(last_values, last_dones, gamma, gae_lambda)
         
         loss = agent.update(buffer)
         
@@ -123,7 +123,6 @@ def train():
             avg_reward = 0.0
             avg_length = 0.0
             
-        # Always log performance (even if no episodes completed)
         log_performance(
             epoch=epoch,
             avg_reward=avg_reward,
@@ -131,14 +130,12 @@ def train():
             path="flappy_bird_ppo/train_performance_log.csv"
         )
         
-        # Print progress
         if epoch % 10 == 0:
             print(f"Epoch {epoch}/{total_epochs}")
             print(f"  Avg Reward (last 100): {avg_reward:.2f}")
             print(f"  Avg Length (last 100): {avg_length:.2f}")
             print(f"  Episodes completed: {len(episode_rewards)}")
         
-        # Save best model
         if episode_rewards and avg_reward > best_avg_reward:
             best_avg_reward = avg_reward
             save_checkpoint(

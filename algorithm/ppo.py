@@ -75,7 +75,7 @@ class PPO(nn.Module):
                 mb_inds = b_inds[start:end]
 
                 _, newlogprob, entropy, newvalue = self.get_action_and_value(
-                    b_obs[mb_inds], b_actions.long()[mb_inds] 
+                    b_obs[mb_inds], b_actions[mb_inds] 
                 )
                 
                 logratio = newlogprob - b_logprobs[mb_inds]
