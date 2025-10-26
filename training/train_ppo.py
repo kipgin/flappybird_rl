@@ -65,8 +65,8 @@ def train():
     buffer = RolloutBuffer(
         num_steps=num_steps,
         num_envs=num_envs,
-        state_shape=(state_dim,),
-        action_shape=(),
+        state_shape=state_dim,
+        action_shape=action_dim,
         device=device
     )
     
@@ -87,7 +87,7 @@ def train():
         for step in range(num_steps):
             with torch.no_grad():
                 actions, logprobs, _, values = agent.get_action_and_value(obs)
-            
+            # values = values.flatten()
             next_obs, rewards, dones, truncated, info = envs.step(actions.cpu().numpy())
     
             next_obs = torch.tensor(next_obs,dtype=torch.float32).to(device)
@@ -122,7 +122,7 @@ def train():
         else:
             avg_reward = 0.0
             avg_length = 0.0
-            
+        # print("Vua train xong 1 lan")
         log_performance(
             epoch=epoch,
             avg_reward=avg_reward,

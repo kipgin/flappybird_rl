@@ -34,15 +34,14 @@ class PPO(nn.Module):
         )
         self.optimizer = optim.Adam(self.parameters(), lr=lr, eps=1e-5)
 
-    #need to fix, because there is no policy_old
     def select_action(self, state):
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).unsqueeze(0)
             action, log_prob, state_value = self.policy_old.act(state_tensor)
-        return action, log_prob, state_value, state_tensor
+        return action, log_prob, state_value.flatten(), state_tensor
     
     def get_value(self, x):
-        return self.critic(x)
+        return self.critic(x).flatten()
 
     def get_action_and_value(self, x, action=None):
         logits = self.actor(x)
@@ -51,7 +50,7 @@ class PPO(nn.Module):
             action = probs.sample()
         log_prob = probs.log_prob(action)
         entropy = probs.entropy()
-        value = self.critic(x)
+        value = self.critic(x).flatten()
         return action, log_prob, entropy, value
 
     def update(self, buffer):
