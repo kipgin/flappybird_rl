@@ -63,5 +63,36 @@ class DQN_CNN(DQN):
         x = self.cnn.forward(x)
         return x
 
-class 
-        
+class PPO_CNN(PPO):
+    def __init__(self, clip_coef, vf_coef, ent_coef, lr, max_grad_norm, update_epochs, num_minibatches, state_dim, action_dim, layer_size,cfg):
+        super().__init__(clip_coef, vf_coef, ent_coef, lr, max_grad_norm, update_epochs, num_minibatches, state_dim, action_dim, layer_size)
+
+        self.encoder_critic = CNNEncoder(cfg)
+        self.encoder_actor = CNNEncoder(cfg)
+
+    def critic_forward(self,x):
+        x = self.encoder_critic.forward(x)
+        x = self.critic(x)
+        return x
+    
+    def actor_forward(self,x):
+        x = self.encoder_actor.forward(x)
+        x = self.critic(x)
+        return x
+
+class PolicyGradient_CNN(PolicyGradient):
+    def __init__(self, vf_coef, ent_coef, lr, max_grad_norm, state_dim, action_dim, hidden_dim, use_baseline,cfg):
+        super().__init__(vf_coef, ent_coef, lr, max_grad_norm, state_dim, action_dim, hidden_dim, use_baseline)
+        self.encoder_critic = CNNEncoder(cfg)
+        self.encoder_actor = CNNEncoder(cfg)
+    
+    def critic_forward(self,x):
+        if self.use_baseline:
+            x = self.encoder_critic.forward(x)
+            x = self.critic(x)
+        return x
+    
+    def actor_forward(self,x):
+        x= self.encoder_actor(x)
+        x=self.actor(x)
+        return x
