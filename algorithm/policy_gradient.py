@@ -45,16 +45,16 @@ class PolicyGradient(nn.Module):
         if not isinstance(state, torch.Tensor):
             state = torch.tensor(state, dtype=torch.float32)
         logits = self.actor(state)
-        dist = Categorical(logits=logits)
+        # dist = Categorical(logits=logits)
         
-        action = dist.sample()
-        log_prob = dist.log_prob(action)
+        # action = dist.sample()
+        # log_prob = dist.log_prob(action)
         
-        state_value = None
-        if self.use_baseline:
-            state_value = self.critic(state).squeeze(-1) 
+        # state_value = None
+        # if self.use_baseline:
+        #     state_value = self.critic(state).squeeze(-1) 
 
-        return action.item(), log_prob, state_value
+        return logits.argmax(dim=0)
 
     def get_action_and_value(self,states,actions = None):
         logits = self.actor(states)

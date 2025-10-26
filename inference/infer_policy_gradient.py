@@ -71,6 +71,8 @@ def infer():
         while(stop == False):
             with torch.no_grad():
                 action,_,_,_ = agent.get_action_and_value(state)
+                #argmax() testing
+                # action = agent.act(state)
             new_state,reward,terminated,truncated,info = env.step(action.item())
             if terminated or truncated:
                     stop = True

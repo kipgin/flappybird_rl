@@ -1,6 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from algorithm.dqn import DQN
+from algorithm.policy_gradient import PolicyGradient
+from algorithm.ppo import PPO
 
 class CNNEncoder(nn.Module):
     def __init__(self, cfg):
@@ -13,7 +16,6 @@ class CNNEncoder(nn.Module):
         hidden_size = cfg["hidden_size"]
         activation = cfg.get("activation", "relu").lower()
 
-        # relu
         if activation == "relu":
             act_fn = nn.ReLU
         elif activation == "tanh":
@@ -43,7 +45,6 @@ class CNNEncoder(nn.Module):
 
     def forward(self, x):
         x = x / 255.0 if x.dtype == torch.uint8 else x
-        # lazy initialization
         if self.fc is None:
             self._init_fc(x)
 
@@ -52,3 +53,15 @@ class CNNEncoder(nn.Module):
         x = self.fc(x)
         x = self.act(x)
         return x
+
+class DQN_CNN(DQN):
+    def __init__(self, state_dim, action_dim, hidden_dim, enable_dueling_dqn,cfg):
+        super().__init__(state_dim, action_dim, hidden_dim, enable_dueling_dqn)
+        self.cnn = CNNEncoder(cfg)
+    def out(self,x):
+        x=self.forward(x)
+        x = self.cnn.forward(x)
+        return x
+
+class 
+        
