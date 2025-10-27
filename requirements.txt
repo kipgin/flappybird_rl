@@ -1,0 +1,17 @@
+# Requirements for flappybird_rl
+# Note: install torch following official instructions for your CUDA/CPU setup: https://pytorch.org/get-started/locally/
+# If you need CPU-only PyTorch on many systems, you can use: torch>=1.12.0
+
+torch>=1.12.0
+numpy>=1.23.0
+pandas>=1.5.0
+matplotlib>=3.5.0
+gymnasium>=0.28.0
+PyYAML>=6.0
+# The project imports `flappy_bird_gymnasium` — this package may not be on PyPI under this exact name.
+# If pip cannot find it, install from the GitHub repo or the source you used to obtain it.
+flappy_bird_gymnasium
+
+# Optional / dev tools (uncomment if you use them):
+# tqdm
+# seaborn
