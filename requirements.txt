@@ -10,7 +10,7 @@ gymnasium>=0.28.0
 PyYAML>=6.0
 # The project imports `flappy_bird_gymnasium` — this package may not be on PyPI under this exact name.
 # If pip cannot find it, install from the GitHub repo or the source you used to obtain it.
-flappy_bird_gymnasium
+flappy-bird-gymnasium
 
 # Optional / dev tools (uncomment if you use them):
 # tqdm

@@ -11,3 +11,5 @@ training/flappy_bird_ppo
 training/flappy_bird_dqn
 training/flappy_bird_policy_gradient
 training/flappy_bird_cnn
+.venv
+*.png
