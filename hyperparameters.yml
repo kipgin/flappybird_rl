@@ -59,7 +59,7 @@ ppo_flappybird:
   state_dim: 12
   action_dim: 2
   layer_size: 128          
-  total_epochs: 2000     
+  total_epochs: 60000    
   device: "cpu"            
   num_steps: 256           
   gamma: 0.99              
@@ -97,7 +97,7 @@ policy_gradient_flappybird:
   state_dim: 12
   action_dim: 2
   hidden_dim: 128          
-  total_epochs: 10000     
+  total_epochs: 60000   
   device: "cpu"            
   num_steps: 256           
   gamma: 0.99              
