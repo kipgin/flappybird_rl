@@ -13,7 +13,7 @@ cartpole1:
   enable_double_dqn: False
   enable_dueling_dqn: True
 
-#flappybird dqn  
+#flappybird dqn
 flappybird1:
   env_id: FlappyBird-v0
   replay_memory_size: 100000
@@ -33,86 +33,84 @@ flappybird1:
   enable_dueling_dqn: False
   training_episodes: 1000000
   #CNN encoder
-  frame_stack: 4             
-  input_channels: 4          
+  frame_stack: 4
+  input_channels: 4
   conv_channels: [32, 64, 64]
-  kernel_sizes: [8, 4, 3]    
-  strides: [4, 2, 1]         
-  paddings: [0, 0, 0]       
-  hidden_size: 512          
-  activation: "relu"         
-  normalize_obs: true        
-  grayscale: true           
-  frame_skip: 1 
+  kernel_sizes: [8, 4, 3]
+  strides: [4, 2, 1]
+  paddings: [0, 0, 0]
+  hidden_size: 512
+  activation: "relu"
+  normalize_obs: true
+  grayscale: true
+  frame_skip: 1
 #flappybird ppo
 
 ppo_flappybird:
   env_id: FlappyBird-v0
-  num_envs: 4              
-  clip_coef: 0.2           
-  vf_coef: 0.5             
-  ent_coef: 0.01           
-  lr: 0.0002                
-  max_grad_norm: 0.5       
-  update_epochs: 4         
-  num_minibatches: 4       
+  num_envs: 4
+  clip_coef: 0.2
+  vf_coef: 0.5
+  ent_coef: 0.01
+  lr: 0.0002
+  max_grad_norm: 0.5
+  update_epochs: 4
+  num_minibatches: 4
   state_dim: 12
   action_dim: 2
-  layer_size: 128          
-  total_epochs: 2000     
-  device: "cpu"            
-  num_steps: 256           
-  gamma: 0.99              
-  gae_lambda: 0.95         
+  layer_size: 128
+  total_epochs: 60000
+  device: "cpu"
+  num_steps: 256
+  gamma: 0.99
+  gae_lambda: 0.95
   #CNN encoder
-  frame_stack: 4             
-  input_channels: 4          
+  frame_stack: 4
+  input_channels: 4
   conv_channels: [32, 64, 64]
-  kernel_sizes: [8, 4, 3]    
-  strides: [4, 2, 1]         
-  paddings: [0, 0, 0]       
-  hidden_size: 512          
-  activation: "relu"         
-  normalize_obs: true        
-  grayscale: true           
+  kernel_sizes: [8, 4, 3]
+  strides: [4, 2, 1]
+  paddings: [0, 0, 0]
+  hidden_size: 512
+  activation: "relu"
+  normalize_obs: true
+  grayscale: true
   frame_skip: 1
   env_make_params:
-    use_lidar: False          
+    use_lidar: False
 
 # dqn_flappybird:
 #   env_id: FlappyBird-v0
 
-
-
 #flappybird policy_gradient
 policy_gradient_flappybird:
   env_id: FlappyBird-v0
-  num_envs: 4                    
-  vf_coef: 0.5             
-  ent_coef: 0.01           
-  lr: 0.0001               
-  max_grad_norm: 0.5       
-  update_epochs: 4         
-  num_minibatches: 4       
+  num_envs: 4
+  vf_coef: 0.5
+  ent_coef: 0.01
+  lr: 0.0001
+  max_grad_norm: 0.5
+  update_epochs: 4
+  num_minibatches: 4
   state_dim: 12
   action_dim: 2
-  hidden_dim: 128          
-  total_epochs: 10000     
-  device: "cpu"            
-  num_steps: 256           
-  gamma: 0.99              
-  gae_lambda: 0.95         
+  hidden_dim: 128
+  total_epochs: 60000
+  device: "cpu"
+  num_steps: 256
+  gamma: 0.99
+  gae_lambda: 0.95
   #CNN encoder
-  frame_stack: 4             
-  input_channels: 4          
+  frame_stack: 4
+  input_channels: 4
   conv_channels: [32, 64, 64]
-  kernel_sizes: [8, 4, 3]    
-  strides: [4, 2, 1]         
-  paddings: [0, 0, 0]       
-  hidden_size: 512          
-  activation: "relu"         
-  normalize_obs: true        
-  grayscale: true           
+  kernel_sizes: [8, 4, 3]
+  strides: [4, 2, 1]
+  paddings: [0, 0, 0]
+  hidden_size: 512
+  activation: "relu"
+  normalize_obs: true
+  grayscale: true
   frame_skip: 1
 
   env_make_params:
