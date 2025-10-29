@@ -10,6 +10,7 @@ import numpy as np
 
 import matplotlib
 import matplotlib.pyplot as plt
+from gymnasium.vector import AsyncVectorEnv
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -45,7 +46,9 @@ def train():
     
 
     # envs = gym.vector.make(env_id, num_envs=num_envs,use_lidar=False)
-    envs = gym.make_vec(env_id,num_envs=num_envs,use_lidar = False)
+    # envs = gym.make_vec(env_id,num_envs=num_envs,use_lidar = False)
+    envs  = AsyncVectorEnv([lambda : gym.make(env_id,use_lidar = False) for _ in range(num_envs)])
+
     action_dim = envs.single_action_space.n
     state_dim = envs.single_observation_space.shape[0]
 

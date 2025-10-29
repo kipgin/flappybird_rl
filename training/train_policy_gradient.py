@@ -16,6 +16,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from algorithm.policy_gradient import *
 from algorithm.rollout_buffer import RolloutBuffer
 from utils import save_checkpoint, log_performance, plot_rewards
+from gymnasium.vector import AsyncVectorEnv
 
 def config():
     with open('../hyperparameters.yml', 'r') as file:
@@ -45,7 +46,8 @@ def train():
     
 
     # envs = gym.vector.make(env_id, num_envs=num_envs,use_lidar=False)
-    envs = gym.make_vec(env_id,num_envs=num_envs,use_lidar = False)
+    # envs = gym.make_vec(env_id,num_envs=num_envs,use_lidar = False)
+    envs  = AsyncVectorEnv([lambda : gym.make(env_id,use_lidar = False) for _ in range(num_envs)])
     action_dim = envs.single_action_space.n
     state_dim = envs.single_observation_space.shape[0]
 
