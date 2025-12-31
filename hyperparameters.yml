@@ -17,7 +17,7 @@ cartpole1:
 flappybird1:
   env_id: FlappyBird-v0
   replay_memory_size: 100000
-  mini_batch_size: 32
+  mini_batch_size: 512
   epsilon_init: 1
   epsilon_decay: 0.995
   epsilon_min: 0.05
@@ -48,20 +48,23 @@ flappybird1:
 
 ppo_flappybird:
   env_id: FlappyBird-v0
-  num_envs: 4              
+  seed : 42
+  num_envs: 8            
   clip_coef: 0.2           
   vf_coef: 0.5             
   ent_coef: 0.01           
   lr: 0.0002                
   max_grad_norm: 0.5       
   update_epochs: 4         
-  num_minibatches: 4       
+  num_minibatches: 4
+  # mini_batch_size: 512 
+  update_epochs: 4
   state_dim: 12
   action_dim: 2
   layer_size: 128          
-  total_epochs: 60000    
-  device: "cpu"            
-  num_steps: 256           
+  total_epochs: 6000000                
+  num_steps: 512
+  anneal_lr: True           
   gamma: 0.99              
   gae_lambda: 0.95         
   #CNN encoder
@@ -87,7 +90,8 @@ ppo_flappybird:
 #flappybird policy_gradient
 policy_gradient_flappybird:
   env_id: FlappyBird-v0
-  num_envs: 4                    
+  seed : 42
+  num_envs: 8                 
   vf_coef: 0.5             
   ent_coef: 0.01           
   lr: 0.0001               
@@ -97,9 +101,9 @@ policy_gradient_flappybird:
   state_dim: 12
   action_dim: 2
   hidden_dim: 128          
-  total_epochs: 60000   
-  device: "cpu"            
-  num_steps: 256           
+  total_epochs: 6000000
+         
+  num_steps: 512 
   gamma: 0.99              
   gae_lambda: 0.95         
   #CNN encoder

@@ -17,6 +17,21 @@ from algorithm.ppo import PPO
 from algorithm.rollout_buffer import RolloutBuffer
 from utils import save_checkpoint, log_performance, plot_rewards
 
+
+device = ''
+
+if torch.cuda.is_available():
+    device = torch.device('cuda')
+    print(f"Using {torch.cuda.get_device_name(0)}")
+
+elif torch.xpu.is_available():
+    device = torch.device("xpu")
+    print(f"Using {torch.xpu.get_device_name(0)}")
+else:
+    device = torch.device("cpu")
+    print("No cuda or xpu, using cpu")
+
+
 def config():
     with open('../hyperparameters.yml', 'r') as file:
         all_hyperparameters = yaml.safe_load(file)
@@ -31,7 +46,7 @@ def infer():
     total_epochs = config_params['total_epochs']
     gamma = config_params['gamma']
     gae_lambda = config_params['gae_lambda']
-    device = config_params['device']
+    # device = config_params['device']
     clip_coef = config_params['clip_coef']
     vf_coef = config_params['vf_coef']
     ent_coef = config_params['ent_coef']

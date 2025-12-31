@@ -1,4 +1,5 @@
 __pycache__
+.vscode
 agent.py
 # dqn.py
 # experience_replay.py
@@ -7,9 +8,18 @@ offline_rl
 .vscode
 LICENSE
 runs
-training/flappy_bird_ppo
-training/flappy_bird_dqn
-training/flappy_bird_policy_gradient
-training/flappy_bird_cnn
+training/flappy_bird_cnn_ppo
+training/flappy_bird_cnn_dqn
+training/flappy_bird_cnn_policy_gradient
+training/flappy_bird_cnn_dueling_dqn
+training/flappy_bird_cnn_dqn_checkpoints
+training/flappy_bird_cnn_dqn_checkpoints
+training/flappy_bird_cnn_policy_gradient_checkpoints
+training/flappy_bird_cnn_checkpoints
 .venv
 *.png
+slide.txt
+flappy_bird_cnn_ppo
+flappy_bird_cnn_dqn
+flappy_bird_cnn_policy_gradient
+training/.ipynb_checkpoints

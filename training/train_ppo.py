@@ -23,6 +23,21 @@ def config():
         all_hyperparameters = yaml.safe_load(file)
         return all_hyperparameters['ppo_flappybird']
 
+
+device = ''
+
+if torch.cuda.is_available():
+    device = torch.device('cuda')
+    print(f"Using {torch.cuda.get_device_name(0)}")
+
+elif torch.xpu.is_available():
+    device = torch.device("xpu")
+    print(f"Using {torch.xpu.get_device_name(0)}")
+else:
+    device = torch.device("cpu")
+    print("No cuda or xpu, using cpu")
+
+
 def train():
 
     config_params = config()
@@ -32,7 +47,6 @@ def train():
     total_epochs = config_params['total_epochs']
     gamma = config_params['gamma']
     gae_lambda = config_params['gae_lambda']
-    device = config_params['device']
     clip_coef = config_params['clip_coef']
     vf_coef = config_params['vf_coef']
     ent_coef = config_params['ent_coef']
@@ -118,7 +132,6 @@ def train():
         
         loss = agent.update(buffer)
         
-        # Calculate metrics
         if episode_rewards:
             avg_reward = np.mean(episode_rewards[-100:])
             avg_length = np.mean(episode_lengths[-100:])

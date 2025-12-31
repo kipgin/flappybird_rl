@@ -6,7 +6,7 @@ import gymnasium as gym
 import numpy as np
 from datetime import datetime,timedelta
 import flappy_bird_gymnasium
-import numpy as np
+# import numpy as np
 import itertools
 import matplotlib
 import matplotlib.pyplot as plt
@@ -14,8 +14,21 @@ import matplotlib.pyplot as plt
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from algorithm.dqn import DQN
-from algorithm.experience_replay import *
+# from algorithm.experience_replay import *
 from utils import *
+
+
+device = ''
+if torch.cuda.is_available():
+    device = torch.device('cuda')
+    print(f"Using {torch.cuda.get_device_name(0)}")
+
+elif torch.xpu.is_available():
+    device = torch.device("xpu")
+    print(f"Using {torch.xpu.get_device_name(0)}")
+else:
+    device = torch.device("cpu")
+    print("No cuda or xpu, using cpu")
 
 def config():
     with open('../hyperparameters.yml', 'r') as file:
@@ -49,6 +62,8 @@ def infer():
     agent = DQN(state_dim,action_dim,hidden_dim,enable_dueling_dqn)
     state_dict = torch.load("../training/flappy_bird_dqn_checkpoints/best_model.pth",weights_only=False)
     agent.load_state_dict(state_dict["model_state_dict"])
+    agent = agent.to(device)
+    print(f"============= Device is{device}")
     agent.eval()
     rewards_per_episode = []
     for episode in itertools.count():

@@ -4,39 +4,45 @@ import torch.nn.functional as F
 # from utils import *
 
 class DQN(nn.Module):
-
-    def __init__(self, state_dim, action_dim, hidden_dim,enable_dueling_dqn=True):
-        super(DQN, self).__init__()
-
-        self.enable_dueling_dqn=enable_dueling_dqn
-
-
+    def __init__(self, state_dim, action_dim, hidden_dim, enable_dueling_dqn=True):
+        super().__init__()
+        self.enable_dueling_dqn = bool(enable_dueling_dqn)
 
         self.fc1 = nn.Linear(state_dim, hidden_dim)
+        self.ln1 = nn.LayerNorm(hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        self.ln2 = nn.LayerNorm(hidden_dim)
 
         if self.enable_dueling_dqn:
-            self.fc_value = nn.Linear(hidden_dim, hidden_dim)
-            self.value = nn.Linear(hidden_dim, 1)
+            self.v_fc = nn.Linear(hidden_dim, hidden_dim)
+            self.v_ln = nn.LayerNorm(hidden_dim)
+            self.v_out = nn.Linear(hidden_dim, 1)
 
-            self.fc_advantages = nn.Linear(hidden_dim, hidden_dim)
-            self.advantages = nn.Linear(hidden_dim, action_dim)
-
+            self.a_fc = nn.Linear(hidden_dim, hidden_dim)
+            self.a_ln = nn.LayerNorm(hidden_dim)
+            self.a_out = nn.Linear(hidden_dim, action_dim)
         else:
-            self.output = nn.Linear(hidden_dim, action_dim)
+            self.q_out = nn.Linear(hidden_dim, action_dim)
 
-    def forward(self, x):
-        x = F.relu(self.fc1(x))
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # accept single state (state_dim,) -> (1, state_dim)
+        if x.dim() == 1:
+            x = x.unsqueeze(0)
+
+        x = F.relu(self.ln1(self.fc1(x)))
+        x = F.relu(self.ln2(self.fc2(x)))
 
         if self.enable_dueling_dqn:
-            v = F.relu(self.fc_value(x))
-            V = self.value(v)
+            v = F.relu(self.v_ln(self.v_fc(x)))
+            V = self.v_out(v)  # (B,1)
 
-            a = F.relu(self.fc_advantages(x))
-            A = self.advantages(a)
+            a = F.relu(self.a_ln(self.a_fc(x)))
+            A = self.a_out(a)  # (B,action_dim)
 
-            Q = V + A - torch.mean(A, dim=1, keepdim=True)
+            Q = V + A - A.mean(dim=1, keepdim=True)
         else:
-            Q = self.output(x)
+            Q = self.q_out(x)
+
         return Q
 
 

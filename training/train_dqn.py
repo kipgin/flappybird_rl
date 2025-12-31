@@ -19,7 +19,18 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from algorithm.dqn import DQN
 from algorithm.experience_replay import ReplayBuffer
 from utils import save_checkpoint, log_performance, plot_rewards
-device = 'cpu'
+device = ''
+
+if torch.cuda.is_available():
+    device = torch.device('cuda')
+    print(f"Using {torch.cuda.get_device_name(0)}")
+
+elif torch.xpu.is_available():
+    device = torch.device("xpu")
+    print(f"Using {torch.xpu.get_device_name(0)}")
+else:
+    device = torch.device("cpu")
+    print("No cuda or xpu, using cpu")
 
 
 def config():
@@ -53,8 +64,8 @@ def train():
     action_dim = env.action_space.n
     state_dim = env.observation_space.shape[0]
 
-    agent =  DQN(state_dim,action_dim,hidden_dim,enable_double_dqn)
-    target_agent = DQN(state_dim,action_dim,hidden_dim,enable_double_dqn)
+    agent = DQN(state_dim, action_dim, hidden_dim, enable_dueling_dqn=enable_dueling_dqn).to(device)
+    target_agent = DQN(state_dim, action_dim, hidden_dim, enable_dueling_dqn=enable_dueling_dqn).to(device)
     target_agent.load_state_dict(agent.state_dict())
 
     buffer = ReplayBuffer(state_dim,action_dim,replay_memory_size,mini_batch_size)

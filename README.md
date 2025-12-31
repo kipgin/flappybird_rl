@@ -88,9 +88,62 @@ Edit `hyperparameters.yml` to customize:
     - 4 parallel environments for efficient data collection
     - Generalized Advantage Estimation (GAE)
 
-## Coming Soon
+## Coming Soon (done)
 
 🚀 **Vision-based agents:** CNN architecture for raw pixel observations
+
+## 4. Inference (CNN Agents + Video Recording)
+
+> These scripts run **vision-based (CNN)** agents that use **rendered frames** as observations (resize + grayscale + frame stack).
+> Make sure you have a trained `.pth` checkpoint.
+
+Navigate to inference directory:
+```bash
+cd inference
+```
+
+### PPO-CNN
+Deterministic (recommended for evaluation):
+```bash
+python infer_cnn.py --algo cnn_ppo --model-path ..\flappy_bird_cnn_ppo_checkpoints\best_model.pth --episodes 5 --deterministic
+```
+
+Record video:
+```bash
+python infer_cnn.py --algo cnn_ppo --model-path ..\flappy_bird_cnn_ppo_checkpoints\best_model.pth --episodes 3 --deterministic --record-video-dir ..\videos\ppo_cnn
+```
+
+### Policy Gradient - CNN
+Deterministic:
+```bash
+python infer_cnn.py --algo cnn_policy_gradient --model-path ..\flappy_bird_cnn_policy_gradient_checkpoints\best_model.pth --episodes 5 --deterministic
+```
+
+Record video:
+```bash
+python infer_cnn.py --algo cnn_policy_gradient --model-path ..\flappy_bird_cnn_policy_gradient_checkpoints\best_model.pth --episodes 3 --deterministic --record-video-dir ..\videos\pg_cnn
+```
+
+### DQN-CNN
+DQN is naturally greedy at inference (argmax Q), so `--deterministic` is recommended:
+```bash
+python infer_cnn.py --algo cnn_dqn --model-path ..\flappy_bird_cnn_dqn_checkpoints\best_model.pth --episodes 5 --deterministic
+```
+
+Record video:
+```bash
+python infer_cnn.py --algo cnn_dqn --model-path ..\flappy_bird_cnn_dqn_checkpoints\best_model.pth --episodes 3 --deterministic --record-video-dir ..\videos\dqn_cnn
+```
+
+### Notes
+- Use `--config-key` to pick a specific section in `hyperparameters.yml` (defaults are:
+  `ppo_flappybird`, `policy_gradient_flappybird`, `flappybird1`).
+- If you run into Intel XPU issues, you can force CPU inference:
+```bash
+python infer_cnn.py --algo cnn_ppo --model-path ..\flappy_bird_cnn_ppo_checkpoints\best_model.pth --force-cpu --episodes 3 --deterministic
+```
+
+
 
 ## References
 

@@ -2,53 +2,42 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
+
 class DQN(nn.Module):
-
-    def __init__(self, state_dim, action_dim, hidden_dim=256, enable_dueling_dqn=True):
-        super(DQN, self).__init__()
-
-        self.enable_dueling_dqn=enable_dueling_dqn
-
+    def __init__(self, state_dim, action_dim, hidden_dim, enable_dueling_dqn=True):
+        super().__init__()
+        self.enable_dueling_dqn = bool(enable_dueling_dqn)
         self.fc1 = nn.Linear(state_dim, hidden_dim)
+        self.ln1 = nn.LayerNorm(hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        self.ln2 = nn.LayerNorm(hidden_dim)
+        if self.enable_dueling_dqn:
+            self.v_fc = nn.Linear(hidden_dim, hidden_dim)
+            self.v_ln = nn.LayerNorm(hidden_dim)
+            self.v_out = nn.Linear(hidden_dim, 1)
+
+            self.a_fc = nn.Linear(hidden_dim, hidden_dim)
+            self.a_ln = nn.LayerNorm(hidden_dim)
+            self.a_out = nn.Linear(hidden_dim, action_dim)
+        else:
+            self.q_out = nn.Linear(hidden_dim, action_dim)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if x.dim() == 1:
+            x = x.unsqueeze(0)
+
+        x = F.relu(self.ln1(self.fc1(x)))
+        x = F.relu(self.ln2(self.fc2(x)))
 
         if self.enable_dueling_dqn:
-            # Value stream
-            self.fc_value = nn.Linear(hidden_dim, 256)
-            self.value = nn.Linear(256, 1)
+            v = F.relu(self.v_ln(self.v_fc(x)))
+            V = self.v_out(v)  
 
-            # Advantages stream
-            self.fc_advantages = nn.Linear(hidden_dim, 256)
-            self.advantages = nn.Linear(256, action_dim)
+            a = F.relu(self.a_ln(self.a_fc(x)))
+            A = self.a_out(a) 
 
+            Q = V + A - A.mean(dim=1, keepdim=True)
         else:
-            self.output = nn.Linear(hidden_dim, action_dim)
-
-    def forward(self, x):
-        x = F.relu(self.fc1(x))
-
-        if self.enable_dueling_dqn:
-            # Value calc
-            v = F.relu(self.fc_value(x))
-            V = self.value(v)
-
-            # Advantages calc
-            a = F.relu(self.fc_advantages(x))
-            A = self.advantages(a)
-
-            # Calc Q
-            Q = V + A - torch.mean(A, dim=1, keepdim=True)
-
-        else:
-            Q = self.output(x)
+            Q = self.q_out(x)
 
         return Q
-
-
-if __name__ == '__main__':
-    state_dim = 12
-    action_dim = 2
-    net = DQN(state_dim, action_dim)
-    state = torch.randn(10, state_dim)
-    output = net(state)
-    print(output)
-
