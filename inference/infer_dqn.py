@@ -47,7 +47,7 @@ def infer():
     action_dim = env.action_space.n
     state_dim = env.observation_space.shape[0]
     agent = DQN(state_dim,action_dim,hidden_dim,enable_dueling_dqn)
-    state_dict = torch.load("../training/flappy_bird_dqn_checkpoints/best_model.pth",weights_only=False)
+    state_dict = torch.load("../best_model.pth",weights_only=False)
     agent.load_state_dict(state_dict["model_state_dict"])
     agent.eval()
     rewards_per_episode = []
