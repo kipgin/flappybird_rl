@@ -140,7 +140,7 @@ python infer_cnn.py --algo cnn_dqn --model-path ..\training\flappy_bird_cnn_dqn_
   `ppo_flappybird`, `policy_gradient_flappybird`, `flappybird1`).
 - If you run into Intel XPU issues, you can force CPU inference:
 ```bash
-python infer_cnn.py --algo cnn_ppo --model-path ..\flappy_bird_cnn_ppo_checkpoints\best_model.pth --force-cpu --episodes 3 --deterministic
+python infer_cnn.py --algo cnn_ppo --model-path ..\training\flappy_bird_cnn_ppo_checkpoints\{model_file_name}.pth --force-cpu --episodes 3 --deterministic
 ```
 
 
