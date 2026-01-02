@@ -15,3 +15,6 @@ flappy-bird-gymnasium
 # Optional / dev tools (uncomment if you use them):
 # tqdm
 # seaborn
+
+opencv-python
+opencv-contrib-python
