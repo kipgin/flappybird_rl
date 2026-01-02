@@ -105,34 +105,34 @@ cd inference
 ### PPO-CNN
 Deterministic (recommended for evaluation):
 ```bash
-python infer_cnn.py --algo cnn_ppo --model-path ..\flappy_bird_cnn_ppo_checkpoints\best_model.pth --episodes 5 --deterministic
+python infer_cnn.py --algo cnn_ppo --model-path ..\training\flappy_bird_cnn_ppo_checkpoints\{model_file_name}.pth --episodes 5 --deterministic
 ```
 
 Record video:
 ```bash
-python infer_cnn.py --algo cnn_ppo --model-path ..\flappy_bird_cnn_ppo_checkpoints\best_model.pth --episodes 3 --deterministic --record-video-dir ..\videos\ppo_cnn
+python infer_cnn.py --algo cnn_ppo --model-path ..\training\flappy_bird_cnn_ppo_checkpoints\{model_file_name}.pth --episodes 3 --deterministic --record-video-dir ..\videos\ppo_cnn
 ```
 
 ### Policy Gradient - CNN
 Deterministic:
 ```bash
-python infer_cnn.py --algo cnn_policy_gradient --model-path ..\flappy_bird_cnn_policy_gradient_checkpoints\best_model.pth --episodes 5 --deterministic
+python infer_cnn.py --algo cnn_policy_gradient --model-path ..\training\flappy_bird_cnn_policy_gradient_checkpoints\{model_file_name}.pth --episodes 5 --deterministic
 ```
 
 Record video:
 ```bash
-python infer_cnn.py --algo cnn_policy_gradient --model-path ..\flappy_bird_cnn_policy_gradient_checkpoints\best_model.pth --episodes 3 --deterministic --record-video-dir ..\videos\pg_cnn
+python infer_cnn.py --algo cnn_policy_gradient --model-path ..\training\flappy_bird_cnn_policy_gradient_checkpoints\{model_file_name}.pth --episodes 3 --deterministic --record-video-dir ..\videos\pg_cnn
 ```
 
 ### DQN-CNN
 DQN is naturally greedy at inference (argmax Q), so `--deterministic` is recommended:
 ```bash
-python infer_cnn.py --algo cnn_dqn --model-path ..\flappy_bird_cnn_dqn_checkpoints\best_model.pth --episodes 5 --deterministic
+python infer_cnn.py --algo cnn_dqn --model-path ..\training\flappy_bird_cnn_dqn_checkpoints\{model_file_name}.pth --episodes 5 --deterministic
 ```
 
 Record video:
 ```bash
-python infer_cnn.py --algo cnn_dqn --model-path ..\flappy_bird_cnn_dqn_checkpoints\best_model.pth --episodes 3 --deterministic --record-video-dir ..\videos\dqn_cnn
+python infer_cnn.py --algo cnn_dqn --model-path ..\training\flappy_bird_cnn_dqn_checkpoints\{model_file_name}.pth --episodes 3 --deterministic --record-video-dir ..\videos\dqn_cnn
 ```
 
 ### Notes
