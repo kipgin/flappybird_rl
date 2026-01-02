@@ -18,10 +18,16 @@ flappybird1:
   env_id: FlappyBird-v0
   replay_memory_size: 100000
   mini_batch_size: 512
+  num_envs : 8
+  total_timesteps: 5000000
+  learning_starts: 20000
+  train_freq: 1
+  gradient_steps: 1
+
   epsilon_init: 1
   epsilon_decay: 0.995
   epsilon_min: 0.05
-  network_sync_rate: 64
+  network_sync_rate: 1000
   learning_rate_a: 0.0001
   discount_factor_g: 0.99
   stop_on_reward: 100000
@@ -32,6 +38,7 @@ flappybird1:
   enable_double_dqn: False
   enable_dueling_dqn: False
   training_episodes: 1000000
+
   #CNN encoder
   frame_stack: 4             
   input_channels: 4          
@@ -43,7 +50,9 @@ flappybird1:
   activation: "relu"         
   normalize_obs: true        
   grayscale: true           
-  frame_skip: 1 
+  frame_skip: 4
+        
+
 #flappybird ppo
 
 ppo_flappybird:
@@ -78,7 +87,7 @@ ppo_flappybird:
   activation: "relu"         
   normalize_obs: true        
   grayscale: true           
-  frame_skip: 1
+  frame_skip: 4
   env_make_params:
     use_lidar: False          
 
@@ -102,7 +111,7 @@ policy_gradient_flappybird:
   action_dim: 2
   hidden_dim: 128          
   total_epochs: 6000000
-         
+  
   num_steps: 512 
   gamma: 0.99              
   gae_lambda: 0.95         
@@ -117,7 +126,39 @@ policy_gradient_flappybird:
   activation: "relu"         
   normalize_obs: true        
   grayscale: true           
-  frame_skip: 1
-
+  frame_skip: 4
   env_make_params:
     use_lidar: False
+
+#flappybird dqn  
+dueling_dqn:
+  env_id: FlappyBird-v0
+  replay_memory_size: 100000
+  mini_batch_size: 512
+  num_envs : 8
+  epsilon_init: 1
+  epsilon_decay: 0.995
+  epsilon_min: 0.05
+  network_sync_rate: 64
+  learning_rate_a: 0.0001
+  discount_factor_g: 0.99
+  stop_on_reward: 100000
+  fc1_nodes: 512
+  hidden_dim: 128
+  env_make_params:
+    use_lidar: False
+  enable_double_dqn: True
+  enable_dueling_dqn: True
+  training_episodes: 1000000
+  #CNN encoder
+  frame_stack: 4             
+  input_channels: 4          
+  conv_channels: [32, 64, 64]
+  kernel_sizes: [8, 4, 3]    
+  strides: [4, 2, 1]         
+  paddings: [0, 0, 0]       
+  hidden_size: 512          
+  activation: "relu"         
+  normalize_obs: true        
+  grayscale: true           
+  frame_skip: 4

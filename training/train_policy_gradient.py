@@ -63,7 +63,10 @@ def train():
 
     # envs = gym.vector.make(env_id, num_envs=num_envs,use_lidar=False)
     # envs = gym.make_vec(env_id,num_envs=num_envs,use_lidar = False)
-    envs  = AsyncVectorEnv([lambda : gym.make(env_id,use_lidar = False) for _ in range(num_envs)])
+    
+    envs = AsyncVectorEnv([
+        lambda: gym.make(env_id, use_lidar=False, max_episode_steps=5000) for _ in range(num_envs)
+    ])
     action_dim = envs.single_action_space.n
     state_dim = envs.single_observation_space.shape[0]
 
@@ -87,10 +90,6 @@ def train():
         action_shape=action_dim,
         device=device
     )
-    
-    # obs, _ = envs.reset()
-    # print("obs shape:", obs.shape)
-    # obs = torch.FloatTensor(obs).to(device)
     
     best_avg_reward = -float('inf')
     episode_rewards = []

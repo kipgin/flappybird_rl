@@ -13,6 +13,7 @@ from gymnasium.spaces import Box
 from gymnasium.wrappers import GrayscaleObservation as _GrayscaleObservation
 from gymnasium.wrappers import FrameStackObservation as _FrameStack
 from gymnasium.wrappers import ResizeObservation as _ResizeObservation
+from gymnasium.vector import AsyncVectorEnv, SyncVectorEnv
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -37,6 +38,38 @@ else:
     DEVICE = torch.device("cpu")
     print("No cuda or xpu, using cpu")
 
+CPU_DEVICE = torch.device("cpu")
+
+
+class ActionRepeat(gym.Wrapper):
+    def __init__(self, env, skip: int = 4):
+        super().__init__(env)
+        self.skip = int(skip)
+
+    def step(self, action):
+        total_reward = 0.0
+        terminated = False
+        truncated = False
+        info = {}
+        obs = None
+
+        for _ in range(max(1, self.skip)):
+            obs, reward, terminated, truncated, info = self.env.step(action)
+            total_reward += float(reward)
+            if terminated or truncated:
+                break
+
+        return obs, total_reward, terminated, truncated, info
+
+class FixFlappyStepAPI(gym.Wrapper):
+    def step(self, action):
+        out = self.env.step(action)
+        if isinstance(out, tuple) and len(out) == 6:
+            obs, reward, terminated, score_limit_reached,truncated, info = out
+            truncated = bool(truncated or score_limit_reached)
+            return obs, reward, terminated, truncated, info
+        return out 
+
 
 class RenderObservation(ObservationWrapper):
     def __init__(self, env):
@@ -48,23 +81,32 @@ class RenderObservation(ObservationWrapper):
         return frame
 
 
-def make_env(env_id: str, env_make_params: dict, num_frames: int, seed: int):
-    env_make_params = dict(env_make_params or {})
-    env_make_params.setdefault("use_lidar", False)
+def make_env(env_id: str, env_make_params: dict, num_frames: int, seed: int, rank: int, frame_skip: int = 1):
+    def thunk():
+        env_make_params_ = dict(env_make_params or {})
+        env_make_params_.setdefault("use_lidar", False)
 
-    env = gym.make(env_id, render_mode="rgb_array", **env_make_params)
-    env = RenderObservation(env)
-    env = gym.wrappers.RecordEpisodeStatistics(env)
+        env = gym.make(env_id, render_mode="rgb_array", disable_env_checker=True, **env_make_params_)
+        env = FixFlappyStepAPI(env)
 
-    env = _ResizeObservation(env, (84, 84))
-    try:
-        env = _GrayscaleObservation(env, keep_dim=False)
-    except TypeError:
-        env = _GrayscaleObservation(env)
+        if int(frame_skip) > 1:
+            env = ActionRepeat(env, skip=int(frame_skip))
 
-    env = _FrameStack(env, num_frames)
-    env.action_space.seed(seed)
-    return env
+        env = RenderObservation(env)
+        # env = gym.wrappers.RecordEpisodeStatistics(env)
+
+        env = _ResizeObservation(env, (84, 84))
+        try:
+            env = _GrayscaleObservation(env, keep_dim=False)
+        except TypeError:
+            env = _GrayscaleObservation(env)
+
+        env = _FrameStack(env, num_frames)
+
+        env.action_space.seed(seed + rank)
+        return env
+
+    return thunk
 
 
 def _obs_to_tensor_single(obs, device: torch.device) -> torch.Tensor:
@@ -78,6 +120,12 @@ def _obs_to_tensor_single(obs, device: torch.device) -> torch.Tensor:
         x = x.float().div_(255.0)
     else:
         x = x.float()
+    return x.to(device, non_blocking=True)
+
+def _obs_to_tensor_batch(obs_batch, device: torch.device) -> torch.Tensor:
+    arr = np.asarray(obs_batch, dtype=np.uint8)
+    x = torch.as_tensor(arr, device="cpu")
+    x = x.float().div_(255.0)
     return x.to(device, non_blocking=True)
 
 def train_cnn_dqn():
@@ -100,20 +148,43 @@ def train_cnn_dqn():
     enable_dueling_dqn = bool(hp.get("enable_dueling_dqn", False))
 
     hidden_dim = int(hp.get("hidden_dim", 128))
-    training_episodes = int(hp.get("training_episodes", 1_000_000))
+    # training_episodes = int(hp.get("training_episodes", 1_000_000))
+
+    num_envs = int(hp.get("num_envs", 8))
+    total_timesteps = int(hp.get("total_timesteps", 5_000_000))
+    learning_starts = int(hp.get("learning_starts", 20_000))
+    train_freq = int(hp.get("train_freq", 1))          # do 1 update per env step (vector step)
+    gradient_steps = int(hp.get("gradient_steps", 1))  # number of updates each train event
+    vector_mode = str(hp.get("vector_mode", "sync")).lower()  # "sync" (safer) or "async"
+
+    # num_frames = int(hp.get("frame_stack", 4))
+    # env_make_params = hp.get("env_make_params", {})
+
 
     num_frames = int(hp.get("frame_stack", 4))
     env_make_params = hp.get("env_make_params", {})
+    frame_skip = int(hp.get("frame_skip", 1)) 
 
     np.random.seed(seed)
     torch.manual_seed(seed)
 
-    env = make_env(env_id, env_make_params, num_frames=num_frames, seed=seed)
+    # env = make_env(env_id, env_make_params, num_frames=num_frames, seed=seed,frame_skip=frame_skip)
+    # VecCls = AsyncVectorEnv if vector_mode == "async" else SyncVectorEnv
+    envs = AsyncVectorEnv([make_env(env_id, env_make_params, num_frames=num_frames,frame_skip=frame_skip, seed=seed,rank =i ) for i in range(num_envs)])
 
-    action_dim = env.action_space.n
-    obs0, _ = env.reset(seed=seed)
-    obs0_arr = np.array(obs0)
-    obs_shape = tuple(obs0_arr.shape)
+
+    # action_dim = env.action_space.n
+    # obs0, _ = env.reset(seed=seed)
+    # obs0_arr = np.array(obs0)
+    # obs_shape = tuple(obs0_arr.shape)
+
+
+    obs, infos = envs.reset(seed=seed)
+    action_dim = envs.single_action_space.n
+    obs_shape = tuple(np.asarray(obs).shape[1:])
+
+    ep_ret = np.zeros(num_envs, dtype=np.float32)
+    ep_len = np.zeros(num_envs, dtype=np.int32)
 
     agent = DQN_CNN(
         obs_shape=obs_shape,
@@ -140,7 +211,9 @@ def train_cnn_dqn():
         if hasattr(torch, "xpu") and DEVICE.type == "xpu":
             torch.xpu.synchronize()
     print("Warm-up done.", flush=True)
+    
 
+    #dung uniform replaybuffercnn
     buffer = ReplayBufferCNN(
         state_shape=obs_shape,
         action_size=action_dim,
@@ -149,110 +222,138 @@ def train_cnn_dqn():
         device=DEVICE,  
     )
 
+    #dung prioritized replaybuffercnn
+
 
     optimizer = torch.optim.Adam(agent.parameters(), lr=learning_rate_a)
     loss_fn = torch.nn.MSELoss()
 
     time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_every_steps = 10000
+    ckpt_every_steps =  200000
     best_avg_reward = -float("inf")
     episode_rewards = []
     episode_lengths = []
+
+
+    last_loss_value = 0.0
+
 
     epsilon = epsilon_init
     sync_counter = 0
 
     print(f"Bat dau train CNN+DQN voi game: {env_id}")
-    print(f"Episodes: {training_episodes}, Replay: {replay_memory_size}, Batch: {mini_batch_size}, Device: {DEVICE}")
+    print(f"Episodes: {total_timesteps}, Replay: {replay_memory_size}, Batch: {mini_batch_size}, Device: {DEVICE}")
 
-    for epoch in range(training_episodes):
-        state, _ = env.reset(seed=seed + epoch)
-        done = False
-        episode_reward = 0.0
-        episode_length = 0
-        losses_in_episode = []
+    global_step = 0
+    while global_step < total_timesteps:
+        # epsilon-greedy (vectorized)
+        rand_mask = (np.random.rand(num_envs) < epsilon)
+        actions = np.random.randint(action_dim, size=num_envs, dtype=np.int64)
+        if not np.all(rand_mask):
+            with torch.no_grad():
+                obs_dev = _obs_to_tensor_batch(obs, DEVICE)
+                q = agent(obs_dev)
+                greedy = q.argmax(dim=1).detach().cpu().numpy().astype(np.int64)
+            actions[~rand_mask] = greedy[~rand_mask]
 
-        while not done:
-            # epsilon-greedy
-            if np.random.rand() < epsilon:
-                action = env.action_space.sample()
-            else:
-                with torch.no_grad():
-                    s = _obs_to_tensor_single(state, DEVICE) 
-                    q = agent(s)  
-                    action = int(q.argmax(dim=1).item())
+        next_obs, rewards, terminated, truncated, infos = envs.step(actions)
+        dones = np.logical_or(terminated, truncated)
 
-            next_state, reward, terminated, truncated, info = env.step(action)
-            done = bool(terminated or truncated)
+        buffer.add_batch(
+            states_u8=np.asarray(obs, dtype=np.uint8),
+            actions=actions,
+            rewards=rewards,
+            next_states_u8=np.asarray(next_obs, dtype=np.uint8),
+            dones=dones.astype(np.uint8),
+        )
 
-            state_u8 = np.array(state, dtype=np.uint8)
-            next_state_u8 = np.array(next_state, dtype=np.uint8)
-            buffer.add((state_u8, action, float(reward), next_state_u8, int(done)))
+        ep_ret += rewards.astype(np.float32)
+        ep_len += 1
+        done_idxs = np.where(dones)[0]
+        if done_idxs.size > 0:
+            for i in done_idxs.tolist():
+                episode_rewards.append(float(ep_ret[i]))
+                episode_lengths.append(int(ep_len[i]))
+                ep_ret[i] = 0.0
+                ep_len[i] = 0
 
-            episode_reward += float(reward)
-            episode_length += 1
+            # # thuc ra VectorEnv co san roi nay khong can
+            # reset_out = envs.env_method("reset", indices=done_idxs.tolist(), seed=[seed + 10_000 + global_step + int(i) for i in done_idxs.tolist()])
+            # # reset_out is list of tuples [(obs, info), ...]
+            # for j, i in enumerate(done_idxs.tolist()):
+            #     next_obs[i] = reset_out[j][0]
 
-            if buffer.real_size >= mini_batch_size:
-                states, actions, rewards, next_states, dones = buffer.sample()
-                dones_f = dones.float()
-                with torch.no_grad():
-                    if enable_double_dqn:
-                        best_actions = agent(next_states).argmax(dim=1)  # (B,)
-                        next_q = target_agent(next_states).gather(1, best_actions.unsqueeze(1)).squeeze(1)
-                    else:
-                        next_q = target_agent(next_states).max(dim=1)[0]
-                    target_q = rewards + (1.0 - dones_f) * discount_factor_g * next_q
-                current_q = agent(states).gather(1, actions.unsqueeze(1)).squeeze(1)
-                loss = loss_fn(current_q, target_q)
+        obs = next_obs
+        global_step += num_envs
 
-                optimizer.zero_grad()
+        epsilon = max(epsilon * epsilon_decay, epsilon_min)
+
+        #updating learner
+        if buffer.real_size >= mini_batch_size and global_step >= learning_starts and (global_step // num_envs) % train_freq == 0:
+            agent.train()
+            for _ in range(max(1, gradient_steps)):
+                states, actions_t, rewards_t, next_states, dones_t = buffer.sample()
+                loss = agent.td_loss(
+                    target_net=target_agent,
+                    states=states,
+                    actions=actions_t,
+                    rewards=rewards_t,
+                    next_states=next_states,
+                    dones=dones_t,
+                    gamma=discount_factor_g,
+                    double_dqn=enable_double_dqn,
+                    loss_fn=loss_fn,
+                )
+
+                optimizer.zero_grad(set_to_none=True)
                 loss.backward()
-
                 optimizer.step()
+                
 
-                losses_in_episode.append(float(loss.detach().cpu()))
+                last_loss_value = float(loss.detach().cpu())
+
                 sync_counter += 1
-
                 if sync_counter >= network_sync_rate:
                     target_agent.load_state_dict(agent.state_dict())
                     sync_counter = 0
 
-            state = next_state
+        # logging
+        if episode_rewards:
+            avg_reward = float(np.mean(episode_rewards[-100:]))
+            avg_length = float(np.mean(episode_lengths[-100:]))
+            best_avg_reward = max(best_avg_reward, avg_reward)
+        else:
+            avg_reward = 0.0
+            avg_length = 0.0
 
-        epsilon = max(epsilon * epsilon_decay, epsilon_min)
+        if global_step % log_every_steps == 0:
+            log_performance(
+                epoch=global_step, 
+                avg_reward=avg_reward,
+                loss=last_loss_value,
+                path=f"flappy_bird_cnn_dqn/{time_str}/train_performance_log.csv",
+            )
 
-        avg_loss = float(np.mean(losses_in_episode)) if losses_in_episode else 0.0
-        episode_rewards.append(episode_reward)
-        episode_lengths.append(episode_length)
+            print(f"Steps={global_step} | eps={epsilon:.3f} | Episodes={len(episode_rewards)}")
+            print(f"  Avg Reward (last 100): {avg_reward:.2f}")
+            print(f"  Avg Length (last 100): {avg_length:.2f}")
+            print(f"  Loss: {last_loss_value:.6f}")
+            print(f"  Best Avg Reward: {best_avg_reward:.2f}")
 
-        avg_reward_100 = float(np.mean(episode_rewards[-100:])) if episode_rewards else 0.0
-
-        log_performance(
-            epoch=epoch,
-            avg_reward=episode_reward,
-            loss=avg_loss,
-            path=f"flappy_bird_cnn_dqn/{time_str}/train_performance_log.csv",
-        )
-
-        if epoch % 10 == 0:
-            print(f"Episode {epoch}/{training_episodes} | eps={epsilon:.3f}")
-            print(f"  Reward: {episode_reward:.2f} | Len: {episode_length}")
-            print(f"  Avg Reward (last 100): {avg_reward_100:.2f} | Avg Loss: {avg_loss:.6f}")
-
-        if avg_reward_100 > best_avg_reward and len(episode_rewards) >= 20:
-            best_avg_reward = avg_reward_100
+        if global_step % ckpt_every_steps == 0 and global_step > 0:
             save_checkpoint(
                 model=agent,
                 optimizer=optimizer,
-                epoch=epoch,
-                avg_reward=avg_reward_100,
+                epoch=global_step,
+                avg_reward=avg_reward,
                 path="flappy_bird_cnn_dqn_checkpoints",
             )
-            print(f"  New best model saved! Avg reward(100): {best_avg_reward:.2f}")
 
     save_checkpoint(
         model=agent,
         optimizer=optimizer,
-        epoch=training_episodes,
+        epoch=global_step,
         avg_reward=best_avg_reward if episode_rewards else 0.0,
         path="flappy_bird_cnn_dqn_checkpoints",
     )
@@ -263,11 +364,10 @@ def train_cnn_dqn():
         save_path=f"flappy_bird_cnn_dqn/final_training_results_{time_str}.png",
     )
 
-    env.close()
+    envs.close()
     print("Training finished...")
     print(f"Best average reward (last 100): {best_avg_reward:.2f}")
     print(f"Total episodes completed: {len(episode_rewards)}")
-
 
 if __name__ == "__main__":
     train_cnn_dqn()

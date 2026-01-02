@@ -44,6 +44,33 @@ class DQN(nn.Module):
             Q = self.q_out(x)
 
         return Q
+    
+    def td_loss(
+        self,
+        target_net: "DQN",
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        rewards: torch.Tensor,
+        next_states: torch.Tensor,
+        dones: torch.Tensor,
+        gamma: float,
+        double_dqn: bool = False,
+        loss_fn=None,
+    ) -> torch.Tensor:
+        
+        if loss_fn is None:
+            loss_fn = torch.nn.MSELoss()
+
+        with torch.no_grad():
+            if double_dqn:
+                best_actions = self(next_states).argmax(dim=1)  # (B,)
+                next_q = target_net(next_states).gather(1, best_actions.unsqueeze(1)).squeeze(1)
+            else:
+                next_q = target_net(next_states).max(dim=1)[0]
+            target_q = rewards + (1.0 - dones) * float(gamma) * next_q
+
+        current_q = self(states).gather(1, actions.unsqueeze(1)).squeeze(1)
+        return loss_fn(current_q, target_q)
 
 
 

@@ -119,7 +119,7 @@ class VectorizedFrameStackWithReset:
         processed = preprocess_frames_vectorized(frames)
         for i in range(self.num_envs):
             if dones[i]:
-                self.reset_env(i, frames[i])
+                self.reset_one_env(i, frames[i])
             else:
                 self.frames[i].append(processed[i])
         return self._get_state()

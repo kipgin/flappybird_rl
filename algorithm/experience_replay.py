@@ -174,10 +174,48 @@ class PrioritizedReplayBuffer:
             if pr > self.max_priority:
                 self.max_priority = float(pr)
 
+# class ReplayBufferCNN:
+#     def __init__(self, state_shape, action_size, buffer_size, mini_batch_size, device):
+#         state_shape = tuple(state_shape)
+#         self.device = device 
+
+#         self.state = torch.empty((buffer_size, *state_shape), dtype=torch.uint8, device="cpu")
+#         self.action = torch.empty((buffer_size,), dtype=torch.int64, device="cpu")
+#         self.reward = torch.empty((buffer_size,), dtype=torch.float32, device="cpu")
+#         self.next_state = torch.empty((buffer_size, *state_shape), dtype=torch.uint8, device="cpu")
+#         self.done = torch.empty((buffer_size,), dtype=torch.uint8, device="cpu")
+
+#         self.count = 0
+#         self.real_size = 0
+#         self.size = int(buffer_size)
+#         self.mini_batch_size = int(mini_batch_size)
+
+#     def add(self, transition):
+#         state, action, reward, next_state, done = transition
+#         self.state[self.count] = torch.as_tensor(state, dtype=torch.uint8, device="cpu")
+#         self.action[self.count] = torch.as_tensor(action, dtype=torch.int64, device="cpu")
+#         self.reward[self.count] = torch.as_tensor(reward, dtype=torch.float32, device="cpu")
+#         self.next_state[self.count] = torch.as_tensor(next_state, dtype=torch.uint8, device="cpu")
+#         self.done[self.count] = torch.as_tensor(done, dtype=torch.uint8, device="cpu")
+#         self.count = (self.count + 1) % self.size
+#         self.real_size = min(self.size, self.real_size + 1)
+
+#     def sample(self):
+#         assert self.real_size >= self.mini_batch_size
+#         sample_idxs = np.random.choice(self.real_size, self.mini_batch_size, replace=False)
+#         states = self.state[sample_idxs].float().div(255.0).to(self.device)
+#         next_states = self.next_state[sample_idxs].float().div(255.0).to(self.device)
+
+#         actions = self.action[sample_idxs].to(self.device)
+#         rewards = self.reward[sample_idxs].to(self.device)
+#         dones = self.done[sample_idxs].float().to(self.device)
+
+#         return states, actions, rewards, next_states, dones
+
 class ReplayBufferCNN:
     def __init__(self, state_shape, action_size, buffer_size, mini_batch_size, device):
         state_shape = tuple(state_shape)
-        self.device = device 
+        self.device = device
 
         self.state = torch.empty((buffer_size, *state_shape), dtype=torch.uint8, device="cpu")
         self.action = torch.empty((buffer_size,), dtype=torch.int64, device="cpu")
@@ -200,9 +238,51 @@ class ReplayBufferCNN:
         self.count = (self.count + 1) % self.size
         self.real_size = min(self.size, self.real_size + 1)
 
+
+    #do nothing
+    def add_batch(self, states_u8, actions, rewards, next_states_u8, dones):
+        states_u8 = np.asarray(states_u8, dtype=np.uint8)
+        next_states_u8 = np.asarray(next_states_u8, dtype=np.uint8)
+        actions = np.asarray(actions, dtype=np.int64)
+        rewards = np.asarray(rewards, dtype=np.float32)
+        dones = np.asarray(dones, dtype=np.uint8)
+
+        n = int(actions.shape[0])
+        if n <= 0:
+            return
+
+        end = self.count + n
+        if end <= self.size:
+            sl = slice(self.count, end)
+            self.state[sl] = torch.as_tensor(states_u8, dtype=torch.uint8, device="cpu")
+            self.action[sl] = torch.as_tensor(actions, dtype=torch.int64, device="cpu")
+            self.reward[sl] = torch.as_tensor(rewards, dtype=torch.float32, device="cpu")
+            self.next_state[sl] = torch.as_tensor(next_states_u8, dtype=torch.uint8, device="cpu")
+            self.done[sl] = torch.as_tensor(dones, dtype=torch.uint8, device="cpu")
+        else:
+            n1 = self.size - self.count
+            sl1 = slice(self.count, self.size)
+            sl2 = slice(0, end % self.size)
+
+            self.state[sl1] = torch.as_tensor(states_u8[:n1], dtype=torch.uint8, device="cpu")
+            self.action[sl1] = torch.as_tensor(actions[:n1], dtype=torch.int64, device="cpu")
+            self.reward[sl1] = torch.as_tensor(rewards[:n1], dtype=torch.float32, device="cpu")
+            self.next_state[sl1] = torch.as_tensor(next_states_u8[:n1], dtype=torch.uint8, device="cpu")
+            self.done[sl1] = torch.as_tensor(dones[:n1], dtype=torch.uint8, device="cpu")
+
+            self.state[sl2] = torch.as_tensor(states_u8[n1:], dtype=torch.uint8, device="cpu")
+            self.action[sl2] = torch.as_tensor(actions[n1:], dtype=torch.int64, device="cpu")
+            self.reward[sl2] = torch.as_tensor(rewards[n1:], dtype=torch.float32, device="cpu")
+            self.next_state[sl2] = torch.as_tensor(next_states_u8[n1:], dtype=torch.uint8, device="cpu")
+            self.done[sl2] = torch.as_tensor(dones[n1:], dtype=torch.uint8, device="cpu")
+
+        self.count = end % self.size
+        self.real_size = min(self.size, self.real_size + n)
+
     def sample(self):
         assert self.real_size >= self.mini_batch_size
         sample_idxs = np.random.choice(self.real_size, self.mini_batch_size, replace=False)
+
         states = self.state[sample_idxs].float().div(255.0).to(self.device)
         next_states = self.next_state[sample_idxs].float().div(255.0).to(self.device)
 

@@ -92,7 +92,7 @@ class PPO(nn.Module):
                 mb_inds = b_inds[start:end]
 
 
-                t1 = time.time()
+                # t1 = time.time()
 
 
                 _, newlogprob, entropy, newvalue = self.get_action_and_value(
@@ -105,7 +105,7 @@ class PPO(nn.Module):
                 # print(f"[PPO.update] forward done: {time.time()-t1:.3f}s", flush=True)
 
 
-                t2 = time.time()
+                # t2 = time.time()
 
 
                 logratio = newlogprob - b_logprobs[mb_inds]

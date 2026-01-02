@@ -5,6 +5,8 @@ import yaml
 import numpy as np
 import torch
 import gymnasium as gym
+import cv2
+import time
 
 from gymnasium import ObservationWrapper
 from gymnasium.spaces import Box
@@ -41,6 +43,14 @@ def load_cfg(yaml_path: str, config_key: str) -> dict:
     return all_cfg[config_key]
 
 
+class FixFlappyStepAPI(gym.Wrapper):
+    def step(self, action):
+        out = self.env.step(action)
+        if isinstance(out, tuple) and len(out) == 6:
+            obs, reward, terminated, truncated, info, _extra = out
+            return obs, reward, terminated, truncated, info
+        return out 
+    
 class RenderObservation(ObservationWrapper):
     def __init__(self, env):
         super().__init__(env)
@@ -48,18 +58,24 @@ class RenderObservation(ObservationWrapper):
 
     def observation(self, obs):
         frame = self.env.render()
+        if frame is None:
+            raise RuntimeError("env.render() returned None. Ensure render_mode='rgb_array'.")
         return frame
 
 
 def make_env(env_id: str, cfg: dict, seed: int, num_frames: int, record_video_dir: str | None):
     env_make_params = dict(cfg.get("env_make_params", {}) or {})
     env_make_params.setdefault("use_lidar", False)
-    env = gym.make(env_id, render_mode="rgb_array", **env_make_params)
+    # env = gym.make(env_id, render_mode="rgb_array", **env_make_params)
+    env = gym.make(env_id, render_mode="rgb_array", disable_env_checker=True, **env_make_params)
+    
+    env = FixFlappyStepAPI(env)
+
     if record_video_dir:
         os.makedirs(record_video_dir, exist_ok=True)
         env = gym.wrappers.RecordVideo(env, video_folder=record_video_dir, episode_trigger=lambda ep: True)
     env = RenderObservation(env)
-    env = gym.wrappers.RecordEpisodeStatistics(env)
+    # env = gym.wrappers.RecordEpisodeStatistics(env)
     env = _ResizeObservation(env, (84, 84))
     try:
         env = _GrayscaleObservation(env, keep_dim=False)
@@ -209,11 +225,27 @@ def main():
         total_r = 0.0
         steps = 0
 
+        fps = env.metadata.get("render_fps", 30)
+        frame_duration = 1.0 / fps
+
         for _ in range(args.max_steps):
+            start_time = time.time()
+
             obs_t = obs_to_tensor_single(obs, device)
             action = select_action(model, args.algo, obs_t, deterministic=args.deterministic)
+            frame = env.unwrapped.render()
+            if(frame is not None):
+                view_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                cv2.imshow("Flappy Bird", view_frame)
 
             obs, reward, terminated, truncated, info = env.step(action)
+
+            elapsed = time.time() - start_time
+            wait_ms = max(1, int((frame_duration - elapsed) * 1000))
+
+            #wating fps time
+            if (cv2.waitKey(wait_ms) & 0xFF) == ord("q"):
+                terminated, truncated = True, True
             total_r += float(reward)
             steps += 1
 
@@ -223,7 +255,7 @@ def main():
         print(f"Episode {ep}: reward={total_r:.2f}, length={steps}")
 
     env.close()
-
+    cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     main()

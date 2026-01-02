@@ -83,8 +83,17 @@ class PPO_CNN(PPO):
                  obs_shape, action_dim, layer_size, cfg=None):
         ccfg = _make_cnn_cfg(cfg)
 
+        # update_epochs = int((cfg or {}).get("update_epochs", 1))
+        # num_minibatches = int((cfg or {}).get("num_minibatches", 1))
+
         feature_dim = int(ccfg["hidden_size"])
-        super().__init__(clip_coef, vf_coef, ent_coef, lr, max_grad_norm, update_epochs, num_minibatches,
+        super().__init__(clip_coef, 
+                         vf_coef, 
+                         ent_coef, 
+                         lr, 
+                         max_grad_norm, 
+                         update_epochs, 
+                         num_minibatches,
                          state_dim=feature_dim, action_dim=action_dim, layer_size=layer_size)
         self.encoder_actor = CNNEncoder(ccfg)
         self.encoder_critic = CNNEncoder(ccfg)
@@ -110,7 +119,20 @@ class PolicyGradient_CNN(PolicyGradient):
     def __init__(self, vf_coef, ent_coef, lr, max_grad_norm, obs_shape, action_dim, hidden_dim, use_baseline=True, cfg=None):
         ccfg = _make_cnn_cfg(cfg)
         feature_dim = int(ccfg["hidden_size"])
-        super().__init__(vf_coef, ent_coef, lr, max_grad_norm, state_dim=feature_dim, action_dim=action_dim, hidden_dim=hidden_dim, use_baseline=use_baseline)
+        update_epochs = int((cfg or {}).get("update_epochs", 1))
+        num_minibatches = int((cfg or {}).get("num_minibatches", 1))
+
+        super().__init__(vf_coef, 
+                         ent_coef, 
+                         lr, 
+                         max_grad_norm, 
+                         state_dim=feature_dim, 
+                         action_dim=action_dim, 
+                         hidden_dim=hidden_dim, 
+                         use_baseline=use_baseline,
+                         update_epochs=update_epochs,
+                         num_minibatches=num_minibatches
+                         )
         self.encoder_actor = CNNEncoder(ccfg)
         self.encoder_critic = CNNEncoder(ccfg)
 
