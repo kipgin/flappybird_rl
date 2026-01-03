@@ -201,6 +201,7 @@ def train_cnn_dqn():
         enable_dueling_dqn=enable_dueling_dqn,
         cfg=hp,
     ).to(DEVICE)
+    
     target_agent.load_state_dict(agent.state_dict())
     target_agent.eval()
 
@@ -247,7 +248,7 @@ def train_cnn_dqn():
 
     global_step = 0
     while global_step < total_timesteps:
-        # epsilon-greedy (vectorized)
+        #epsilon-greedy
         rand_mask = (np.random.rand(num_envs) < epsilon)
         actions = np.random.randint(action_dim, size=num_envs, dtype=np.int64)
         if not np.all(rand_mask):
@@ -266,7 +267,6 @@ def train_cnn_dqn():
             # infos["_final_observation"] la mask boolean cho biet env nao da reset
             for idx, is_final in enumerate(infos.get("_final_observation", [])):
                 if is_final:
-                    # Lay terminal state thuc su tu infos
                     real_next_obs[idx] = infos["final_observation"][idx]
 
         buffer.add_batch(
@@ -336,14 +336,14 @@ def train_cnn_dqn():
             avg_reward = 0.0
             avg_length = 0.0
 
+        # if global_step % log_every_steps == 0:
+        log_performance(
+            epoch=global_step, 
+            avg_reward=avg_reward,
+            loss=last_loss_value,
+            path=f"flappy_bird_cnn_dqn/{time_str}/train_performance_log.csv",
+        )
         if global_step % log_every_steps == 0:
-            log_performance(
-                epoch=global_step, 
-                avg_reward=avg_reward,
-                loss=last_loss_value,
-                path=f"flappy_bird_cnn_dqn/{time_str}/train_performance_log.csv",
-            )
-
             print(f"Steps={global_step} | eps={epsilon:.3f} | Episodes={len(episode_rewards)}")
             print(f"  Avg Reward (last 100): {avg_reward:.2f}")
             print(f"  Avg Length (last 100): {avg_length:.2f}")

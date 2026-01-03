@@ -382,7 +382,7 @@ def train_cnn_ppo():
                 avg_reward=avg_reward,
                 path="flappy_bird_cnn_ppo_checkpoints",
             )
-            print(f"  New model saved! Avg reward: {best_avg_reward:.2f}")
+            print(f"  New model saved! Avg reward: {avg_reward:.2f}")
 
         buffer.clear()
 

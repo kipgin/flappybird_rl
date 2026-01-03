@@ -61,7 +61,7 @@ ppo_flappybird:
   num_envs: 8            
   clip_coef: 0.2           
   vf_coef: 0.5             
-  ent_coef: 0.01           
+  ent_coef: 0.04         
   lr: 0.0002                
   max_grad_norm: 0.5       
   update_epochs: 4         
@@ -102,7 +102,7 @@ policy_gradient_flappybird:
   seed : 42
   num_envs: 8                 
   vf_coef: 0.5             
-  ent_coef: 0.01           
+  ent_coef: 0.03         
   lr: 0.0001               
   max_grad_norm: 0.5       
   update_epochs: 1         
