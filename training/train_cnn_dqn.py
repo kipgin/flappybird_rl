@@ -274,7 +274,7 @@ def train_cnn_dqn():
             actions=actions,
             rewards=rewards,
             next_states_u8=np.asarray(real_next_obs, dtype=np.uint8),
-            dones=dones.astype(np.uint8),
+            dones=terminated.astype(np.uint8),
         )
 
         ep_ret += rewards.astype(np.float32)

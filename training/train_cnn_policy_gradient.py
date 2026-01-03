@@ -265,12 +265,14 @@ def train_cnn_policy_gradient():
             actions_np = actions_dev.detach().cpu().numpy()
             next_obs, rewards, terminated, truncated, infos = envs.step(actions_np)
             dones_np = np.logical_or(terminated, truncated)
+            
+            dones_buffer = terminated
 
             actions_cpu = actions_dev.detach().cpu().long().view(-1)
             logprobs_cpu = logprobs_dev.detach().cpu().view(-1)
             values_cpu = values_dev.detach().cpu().view(-1)
             rewards_cpu = torch.as_tensor(rewards, dtype=torch.float32, device=CPU_DEVICE).view(-1)
-            dones_cpu = torch.as_tensor(dones_np, dtype=torch.float32, device=CPU_DEVICE).view(-1)
+            dones_cpu = torch.as_tensor(dones_buffer, dtype=torch.float32, device=CPU_DEVICE).view(-1)
 
             buffer.add(obs_cpu, actions_cpu, logprobs_cpu, rewards_cpu, dones_cpu, values_cpu)
 

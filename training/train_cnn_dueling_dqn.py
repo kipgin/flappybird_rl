@@ -186,7 +186,7 @@ def train_cnn_dueling_dqn():
 
             state_u8 = np.array(state, dtype=np.uint8)
             next_state_u8 = np.array(next_state, dtype=np.uint8)
-            buffer.add((state_u8, action, float(reward), next_state_u8, int(done)))
+            buffer.add((state_u8, action, float(reward), next_state_u8, int(terminated)))
 
             episode_reward += float(reward)
             episode_length += 1
