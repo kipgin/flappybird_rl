@@ -18,7 +18,7 @@ from gymnasium.vector import AsyncVectorEnv, SyncVectorEnv
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from algorithm.cnn import DQN_CNN
-from algorithm.experience_replay import ReplayBufferCNN
+from algorithm.experience_replay import ReplayBufferCNN , PrioritizedReplayBufferCNN
 from utils import save_checkpoint, log_performance, plot_rewards
 
 
@@ -157,6 +157,13 @@ def train_cnn_dqn():
     gradient_steps = int(hp.get("gradient_steps", 1))  # number of updates each train event
     vector_mode = str(hp.get("vector_mode", "sync")).lower()  # "sync" (safer) or "async"
 
+
+    use_per = bool(hp.get("use_per", False))
+    per_alpha = float(hp.get("per_alpha", 0.6))
+    per_beta0 = float(hp.get("per_beta0", 0.4))
+    per_eps = float(hp.get("per_eps", 1e-6))
+
+
     # num_frames = int(hp.get("frame_stack", 4))
     # env_make_params = hp.get("env_make_params", {})
 
@@ -201,7 +208,7 @@ def train_cnn_dqn():
         enable_dueling_dqn=enable_dueling_dqn,
         cfg=hp,
     ).to(DEVICE)
-    
+
     target_agent.load_state_dict(agent.state_dict())
     target_agent.eval()
 
@@ -214,16 +221,38 @@ def train_cnn_dqn():
     print("Warm-up done.", flush=True)
     
 
-    #dung uniform replaybuffercnn
-    buffer = ReplayBufferCNN(
-        state_shape=obs_shape,
-        action_size=action_dim,
-        buffer_size=replay_memory_size,
-        mini_batch_size=mini_batch_size,
-        device=DEVICE,  
-    )
+    
+    # buffer = ReplayBufferCNN(
+    #     state_shape=obs_shape,
+    #     action_size=action_dim,
+    #     buffer_size=replay_memory_size,
+    #     mini_batch_size=mini_batch_size,
+    #     device=DEVICE,  
+    # )
 
-    #dung prioritized replaybuffercnn
+    #dung uniform replaybuffercnn
+    if not use_per:
+        buffer = ReplayBufferCNN(
+            state_shape=obs_shape,
+            action_size=action_dim,
+            buffer_size=replay_memory_size,
+            mini_batch_size=mini_batch_size,
+            device=DEVICE,
+        )
+
+    #dung PER
+    else:
+        buffer = PrioritizedReplayBufferCNN(
+            state_shape=obs_shape,
+            action_size=action_dim,
+            buffer_size=replay_memory_size,
+            mini_batch_size=mini_batch_size,
+            device=DEVICE,
+            alpha=per_alpha,
+            beta=per_beta0,
+            eps=per_eps,
+        )
+
 
 
     optimizer = torch.optim.Adam(agent.parameters(), lr=learning_rate_a)
@@ -302,18 +331,34 @@ def train_cnn_dqn():
         if buffer.real_size >= mini_batch_size and global_step >= learning_starts and (global_step // num_envs) % train_freq == 0:
             agent.train()
             for _ in range(max(1, gradient_steps)):
-                states, actions_t, rewards_t, next_states, dones_t = buffer.sample()
-                loss = agent.td_loss(
-                    target_net=target_agent,
-                    states=states,
-                    actions=actions_t,
-                    rewards=rewards_t,
-                    next_states=next_states,
-                    dones=dones_t,
-                    gamma=discount_factor_g,
-                    double_dqn=enable_double_dqn,
-                    loss_fn=loss_fn,
-                )
+                if not use_per:
+                    states, actions_t, rewards_t, next_states, dones_t = buffer.sample()
+                    loss = agent.td_loss(
+                        target_net=target_agent,
+                        states=states,
+                        actions=actions_t,
+                        rewards=rewards_t,
+                        next_states=next_states,
+                        dones=dones_t,
+                        gamma=discount_factor_g,
+                        double_dqn=enable_double_dqn,
+                        loss_fn=loss_fn,
+                    )
+                else:
+                    beta = min(1.0, per_beta0 + (1.0 - per_beta0) * (global_step / float(total_timesteps)))
+
+                    states, actions_t, rewards_t, next_states, dones_t, idxs, weights = buffer.sample(beta=beta)
+                    td_err = agent.td_errors(
+                        target_net=target_agent,
+                        states=states,
+                        actions=actions_t,
+                        rewards=rewards_t,
+                        next_states=next_states,
+                        dones=dones_t,
+                        gamma=discount_factor_g,
+                        double_dqn=enable_double_dqn,
+                    )
+                    loss = (weights * td_err.pow(2)).mean()
 
                 optimizer.zero_grad(set_to_none=True)
                 loss.backward()
@@ -321,6 +366,10 @@ def train_cnn_dqn():
                 
 
                 last_loss_value = float(loss.detach().cpu())
+
+                if use_per:
+                    new_p = (td_err.detach().abs().cpu().numpy() + per_eps)
+                    buffer.update_priorities(idxs, new_p)
 
                 sync_counter += 1
                 if sync_counter >= network_sync_rate:

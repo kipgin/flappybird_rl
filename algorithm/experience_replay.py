@@ -291,3 +291,128 @@ class ReplayBufferCNN:
         dones = self.done[sample_idxs].float().to(self.device)
 
         return states, actions, rewards, next_states, dones
+    
+
+
+class PrioritizedReplayBufferCNN:
+    def __init__(
+        self,
+        state_shape,
+        action_size: int,
+        buffer_size: int,
+        mini_batch_size: int,
+        device: torch.device,
+        alpha: float = 0.6,
+        beta: float = 0.4,
+        eps: float = 1e-6,
+    ):
+        state_shape = tuple(state_shape)
+        self.device = device
+
+        self.state = torch.empty((buffer_size, *state_shape), dtype=torch.uint8, device="cpu")
+        self.action = torch.empty((buffer_size,), dtype=torch.int64, device="cpu")
+        self.reward = torch.empty((buffer_size,), dtype=torch.float32, device="cpu")
+        self.next_state = torch.empty((buffer_size, *state_shape), dtype=torch.uint8, device="cpu")
+        self.done = torch.empty((buffer_size,), dtype=torch.uint8, device="cpu")
+
+        self.size = int(buffer_size)
+        self.mini_batch_size = int(mini_batch_size)
+
+        self.alpha = float(alpha)
+        self.beta = float(beta)
+        self.eps = float(eps)
+
+        self.count = 0
+        self.real_size = 0
+
+        self.sum_tree = _SumSegmentTree(self.size)
+        self.min_tree = _MinSegmentTree(self.size)
+        self.max_priority = 1.0
+
+    def __len__(self) -> int:
+        return self.real_size
+
+    def _priority(self, p: float) -> float:
+        p = float(p)
+        return float((abs(p) + self.eps) ** self.alpha)
+
+    def add_batch(self, states_u8, actions, rewards, next_states_u8, dones):
+        states_u8 = np.asarray(states_u8, dtype=np.uint8)
+        next_states_u8 = np.asarray(next_states_u8, dtype=np.uint8)
+        actions = np.asarray(actions, dtype=np.int64)
+        rewards = np.asarray(rewards, dtype=np.float32)
+        dones = np.asarray(dones, dtype=np.uint8)
+
+        n = int(actions.shape[0])
+        if n <= 0:
+            return
+
+        for i in range(n):
+            idx = self.count
+
+            self.state[idx] = torch.as_tensor(states_u8[i], dtype=torch.uint8, device="cpu")
+            self.action[idx] = torch.as_tensor(actions[i], dtype=torch.int64, device="cpu")
+            self.reward[idx] = torch.as_tensor(rewards[i], dtype=torch.float32, device="cpu")
+            self.next_state[idx] = torch.as_tensor(next_states_u8[i], dtype=torch.uint8, device="cpu")
+            self.done[idx] = torch.as_tensor(dones[i], dtype=torch.uint8, device="cpu")
+
+            pr = self._priority(self.max_priority)
+            self.sum_tree[idx] = pr
+            self.min_tree[idx] = pr
+
+            self.count = (self.count + 1) % self.size
+            self.real_size = min(self.size, self.real_size + 1)
+
+    def sample(self, beta: float | None = None):
+        assert self.real_size >= self.mini_batch_size
+        beta = self.beta if beta is None else float(beta)
+
+        total_p = self.sum_tree.sum(0, self.real_size)
+        assert total_p > 0.0
+
+        segment = total_p / self.mini_batch_size
+        idxs = np.empty(self.mini_batch_size, dtype=np.int64)
+        priorities = np.empty(self.mini_batch_size, dtype=np.float32)
+
+        for i in range(self.mini_batch_size):
+            a = segment * i
+            b = segment * (i + 1)
+            s = np.random.uniform(a, b)
+            idx = self.sum_tree.find_prefixsum_idx(s)
+            if idx >= self.real_size:
+                idx = self.real_size - 1
+            idxs[i] = idx
+            priorities[i] = self.sum_tree[idx]
+
+        probs = priorities / np.float32(total_p)
+        min_p = self.min_tree.min(0, self.real_size) / np.float32(total_p)
+        min_p = float(min_p) if min_p > 0 else 1e-12
+        max_w = (self.real_size * min_p) ** (-beta)
+
+        weights = (self.real_size * probs) ** (-beta)
+        weights = weights / np.float32(max_w)
+        weights_t = torch.as_tensor(weights, dtype=torch.float32, device=self.device)
+
+        states = self.state[idxs].float().div_(255.0).to(self.device, non_blocking=True)
+        next_states = self.next_state[idxs].float().div_(255.0).to(self.device, non_blocking=True)
+
+        actions = self.action[idxs].to(self.device, non_blocking=True)
+        rewards = self.reward[idxs].to(self.device, non_blocking=True)
+        dones = self.done[idxs].float().to(self.device, non_blocking=True)
+
+        return states, actions, rewards, next_states, dones, idxs, weights_t
+
+    def update_priorities(self, idxs, priorities):
+        idxs = np.asarray(idxs, dtype=np.int64)
+        priorities = np.asarray(priorities, dtype=np.float32)
+        assert idxs.shape[0] == priorities.shape[0]
+
+        for idx, p in zip(idxs, priorities):
+            idx = int(idx)
+            if idx < 0 or idx >= self.real_size:
+                continue
+            pr = self._priority(float(p))
+            self.sum_tree[idx] = pr
+            self.min_tree[idx] = pr
+            if pr > self.max_priority:
+                self.max_priority = float(pr)
