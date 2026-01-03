@@ -150,6 +150,7 @@ def train_cnn_policy_gradient():
     ent_coef = float(cfg["ent_coef"])
     lr = float(cfg["lr"])
     max_grad_norm = float(cfg["max_grad_norm"])
+    num_minibatches = int(cfg["num_minibatches"])
 
     hidden_dim = int(cfg["hidden_dim"])
     use_baseline = bool(cfg.get("use_baseline", True))
@@ -193,11 +194,16 @@ def train_cnn_policy_gradient():
         cfg=cfg,
     ).to(DEVICE)
 
+    print("======CHECKING param")
+    print(f"use_baseline = {agent_learner.use_baseline}")
+    print(f"num_minibatches = {agent_learner.num_minibatches}")
+    print(f"num_update_epochs ={agent_learner.update_epochs}")
+
     agent_actor.load_state_dict(agent_learner.state_dict())
     agent_actor.eval()
     agent_learner.train()
 
-    # Warm-up (materialize LazyLinear + compile kernels early)
+    # Warm-up
     with torch.no_grad():
         dummy = torch.zeros((num_envs, *cnn_state_shape), device=DEVICE, dtype=torch.float32)
         agent_learner.get_action_and_value(dummy)
@@ -206,6 +212,28 @@ def train_cnn_policy_gradient():
     print("Warm-up learner done.", flush=True)
 
     optimizer = agent_learner.optimizer
+
+
+    # them vao de add parameter cua CNN cho optimizer
+    # agent_learner.optimizer = torch.optim.Adam(agent_learner.parameters(), lr=lr)
+    # optimizer = agent_learner.optimizer
+
+
+    opt_param_ids = {id(p) for g in optimizer.param_groups for p in g["params"]}
+    enc_params = list(agent_learner.encoder_actor.parameters()) + list(agent_learner.encoder_critic.parameters())
+    n_enc = sum(p.numel() for p in enc_params)
+    n_enc_in_opt = sum(p.numel() for p in enc_params if id(p) in opt_param_ids)
+    print(f"===============DEBUG=== encoder params in optimizer: {n_enc_in_opt}/{n_enc} elements")
+
+    actor_params = list(agent_learner.actor.parameters())
+    critic_params = list(agent_learner.critic.parameters())
+    n_actor = sum(p.numel() for p in actor_params)
+    n_critic = sum(p.numel() for p in critic_params)
+    n_actor_in_opt = sum(p.numel() for p in actor_params if id(p) in opt_param_ids)
+    n_critic_in_opt = sum(p.numel() for p in critic_params if id(p) in opt_param_ids)
+    print(f"===============DEBUG=== actor params in optimizer: {n_actor_in_opt}/{n_actor} elements")
+    print(f"===============DEBUG=== critic params in optimizer: {n_critic_in_opt}/{n_critic} elements")
+
 
     buffer = RolloutBuffer(
         num_steps=num_steps,

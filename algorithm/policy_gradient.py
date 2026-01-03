@@ -45,7 +45,6 @@ class PolicyGradient(nn.Module):
                 layer_init(nn.Linear(hidden_dim, 1), std=1.0),
             )
 
-        # FIX: optimizer must always exist
         self.optimizer = torch.optim.Adam(self.parameters(), lr=lr)
 
     def act(self, state):
@@ -89,8 +88,10 @@ class PolicyGradient(nn.Module):
         foreach = False if model_device.type == "xpu" else True
         last_loss = 0.0
 
-
-        for _epoch in range(max(1, int(self.update_epochs))):
+       
+        epochs = max(1, int(self.update_epochs))
+        
+        for _epoch in range(epochs):
             perm = torch.randperm(batch_size, device="cpu").to(model_device, non_blocking=True)
 
 

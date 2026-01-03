@@ -46,21 +46,22 @@ class CNNEncoder(nn.Module):
         self.hidden_size = hidden_size
         self.conv = nn.Sequential(*layers)
         self.flatten = nn.Flatten()
-        self.fc = nn.LazyLinear(hidden_size)
+        
+        with torch.no_grad():
+            dummy_input = torch.zeros(1, int(cfg["input_channels"]), 84, 84)
+            n_flatten = self.conv(dummy_input).view(1, -1).shape[1]
+            
+        self.fc = nn.Linear(n_flatten, hidden_size)
         self.act = act_fn()
 
-    # def _init_fc(self, x: torch.Tensor):
-    #     with torch.no_grad():
-    #         n_flatten = self.conv(x).view(x.size(0), -1).size(1)
-    #     self.fc = nn.Linear(n_flatten, self.hidden_size)
+    def _init_fc(self, x: torch.Tensor):
+        pass
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if x.dtype == torch.uint8:
             x = x.float().div_(255.0)
         else:
             x = x.float()
-        # if self.fc is None:
-        #     self._init_fc(x)
         x = self.conv(x)
         x = self.flatten(x)
         x = self.fc(x)
@@ -97,6 +98,7 @@ class PPO_CNN(PPO):
                          state_dim=feature_dim, action_dim=action_dim, layer_size=layer_size)
         self.encoder_actor = CNNEncoder(ccfg)
         self.encoder_critic = CNNEncoder(ccfg)
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=lr, eps=1e-5)
 
     def get_value(self, obs: torch.Tensor):
         features = self.encoder_critic(obs)
@@ -135,6 +137,9 @@ class PolicyGradient_CNN(PolicyGradient):
                          )
         self.encoder_actor = CNNEncoder(ccfg)
         self.encoder_critic = CNNEncoder(ccfg)
+        
+        
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=lr)
 
     def get_action_and_value(self, obs: torch.Tensor, actions=None):
         features = self.encoder_actor(obs)

@@ -260,11 +260,20 @@ def train_cnn_dqn():
         next_obs, rewards, terminated, truncated, infos = envs.step(actions)
         dones = np.logical_or(terminated, truncated)
 
+        #next_obs tra ve la state cua new episode. Can lay final_observation tu infos
+        real_next_obs = next_obs.copy()
+        if "final_observation" in infos:
+            # infos["_final_observation"] la mask boolean cho biet env nao da reset
+            for idx, is_final in enumerate(infos.get("_final_observation", [])):
+                if is_final:
+                    # Lay terminal state thuc su tu infos
+                    real_next_obs[idx] = infos["final_observation"][idx]
+
         buffer.add_batch(
             states_u8=np.asarray(obs, dtype=np.uint8),
             actions=actions,
             rewards=rewards,
-            next_states_u8=np.asarray(next_obs, dtype=np.uint8),
+            next_states_u8=np.asarray(real_next_obs, dtype=np.uint8),
             dones=dones.astype(np.uint8),
         )
 
