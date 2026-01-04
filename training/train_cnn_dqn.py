@@ -109,22 +109,14 @@ def make_env(env_id: str, env_make_params: dict, num_frames: int, seed: int, ran
     return thunk
 
 
-def _obs_to_tensor_single(obs, device: torch.device) -> torch.Tensor:
-    arr = np.array(obs)
-    x = torch.as_tensor(arr, device="cpu")
-    if x.ndim == 3 and x.shape[-1] in (1, 3, 4) and x.shape[0] not in (1, 3, 4):
-        x = x.permute(2, 0, 1).contiguous()
-    if x.ndim == 3:
-        x = x.unsqueeze(0)
-    if x.dtype == torch.uint8:
-        x = x.float().div_(255.0)
-    else:
-        x = x.float()
-    return x.to(device, non_blocking=True)
-
 def _obs_to_tensor_batch(obs_batch, device: torch.device) -> torch.Tensor:
     arr = np.asarray(obs_batch, dtype=np.uint8)
     x = torch.as_tensor(arr, device="cpu")
+    
+    if x.ndim == 4:
+        if x.shape[-1] in (1, 2, 3, 4) and x.shape[1] not in (1, 2, 3, 4):
+            x = x.permute(0, 3, 1, 2).contiguous()
+            
     x = x.float().div_(255.0)
     return x.to(device, non_blocking=True)
 
