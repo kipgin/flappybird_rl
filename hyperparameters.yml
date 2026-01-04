@@ -56,7 +56,7 @@ flappybird1:
   activation: "relu"         
   normalize_obs: true        
   grayscale: true           
-  frame_skip: 2
+  frame_skip: 4
         
 
 #flappybird ppo
@@ -93,7 +93,7 @@ ppo_flappybird:
   activation: "relu"         
   normalize_obs: true        
   grayscale: true           
-  frame_skip: 2
+  frame_skip: 4
   env_make_params:
     use_lidar: False          
 
@@ -133,7 +133,7 @@ policy_gradient_flappybird:
   activation: "relu"         
   normalize_obs: true        
   grayscale: true           
-  frame_skip: 2
+  frame_skip: 4
   env_make_params:
     use_lidar: False
 
@@ -168,4 +168,4 @@ dueling_dqn:
   activation: "relu"         
   normalize_obs: true        
   grayscale: true           
-  frame_skip: 2
+  frame_skip: 4
