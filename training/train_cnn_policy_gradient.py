@@ -182,9 +182,6 @@ def train_cnn_policy_gradient():
         cfg=cfg,
     ).to(DEVICE)
 
-    
-    agent.optimizer = torch.optim.Adam(agent.parameters(), lr=lr)
-    # Initialize optimizer externally
     optimizer = torch.optim.Adam(agent.parameters(), lr=lr)
 
     agent.train()
@@ -266,7 +263,6 @@ def train_cnn_policy_gradient():
             last_dones = dones_cpu  #cpu tensor
             buffer.compute_returns_and_advantages(last_values, last_dones, gamma, gae_lambda)
 
-        loss = agent.update(buffer)
         loss = agent.update(buffer, optimizer)
 
         if episode_rewards:
