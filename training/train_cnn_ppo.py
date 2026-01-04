@@ -190,7 +190,8 @@ def train_cnn_ppo():
         cfg=cfg,                           
     ).to(DEVICE)
 
-    agent.optimizer = torch.optim.Adam(agent.parameters(), lr=lr, eps=1e-5)
+
+    optimizer = torch.optim.Adam(agent.parameters(), lr=lr, eps=1e-5)
     agent.train()
 
 
@@ -201,8 +202,6 @@ def train_cnn_ppo():
         if hasattr(torch, "xpu") and DEVICE.type == "xpu":
             torch.xpu.synchronize()
     print("Warm-up done.", flush=True)
-
-    optimizer = agent.optimizer
 
     buffer = RolloutBuffer(
         num_steps=num_steps,
@@ -278,7 +277,7 @@ def train_cnn_ppo():
             last_dones = dones_cpu  #cpu tensor
             buffer.compute_returns_and_advantages(last_values, last_dones, gamma, gae_lambda)
 
-        loss = agent.update(buffer)
+        loss = agent.update(buffer, optimizer)
 
         if episode_rewards:
             avg_reward = float(np.mean(episode_rewards[-100:]))

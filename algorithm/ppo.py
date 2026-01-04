@@ -43,7 +43,6 @@ class PPO(nn.Module):
             # nn.ReLU(),
             layer_init(nn.Linear(layer_size, action_dim), std=0.01) 
         )
-        self.optimizer = optim.Adam(self.parameters(), lr=lr, eps=1e-5)
 
     def select_action(self, state):
         with torch.no_grad():
@@ -64,7 +63,7 @@ class PPO(nn.Module):
         value = self.critic(x).flatten()
         return action, log_prob, entropy, value
 
-    def update(self, buffer):
+    def update(self, buffer, optimizer):
         model_device = next(self.parameters()).device  
         t0 = time.time()
 
@@ -113,6 +112,7 @@ class PPO(nn.Module):
 
                 mb_adv = b_advantages[mb_inds]
                 mb_adv = (mb_adv - mb_adv.mean()) / (mb_adv.std() + 1e-8)
+                
 
                 pg_loss1 = -mb_adv * ratio
                 pg_loss2 = -mb_adv * torch.clamp(ratio, 1 - self.clip_coef, 1 + self.clip_coef)
@@ -127,14 +127,14 @@ class PPO(nn.Module):
                 entropy_loss = entropy.mean()
                 loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
 
-                self.optimizer.zero_grad()
+                optimizer.zero_grad()
                 loss.backward()
 
                 foreach = False if next(self.parameters()).device.type == "xpu" else True
 
                 
                 torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm,foreach=foreach)
-                self.optimizer.step()
+                optimizer.step()
 
 
                 # if model_device.type == "xpu" and hasattr(torch, "xpu"):

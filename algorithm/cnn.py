@@ -123,8 +123,6 @@ class PPO_CNN(PPO):
         self.actor = layer_init(nn.Linear(feature_dim, action_dim), std=0.01)
         self.critic = layer_init(nn.Linear(feature_dim, 1), std=1.0)
         
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=lr, eps=1e-5)
-    
     def get_value(self, obs: torch.Tensor):
         hidden = self.network(obs)
         return self.critic(hidden).flatten()
@@ -169,8 +167,6 @@ class PolicyGradient_CNN(PolicyGradient):
         if self.use_baseline:
             self.critic = layer_init(nn.Linear(feature_dim, 1), std=1.0)
         
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=lr)
-
     def get_action_and_value(self, obs: torch.Tensor, actions=None):
         features = self.network(obs)
         return super().get_action_and_value(features, actions)

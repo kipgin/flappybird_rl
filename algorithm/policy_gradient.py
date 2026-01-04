@@ -34,8 +34,6 @@ class PolicyGradient(nn.Module):
                 layer_init(nn.Linear(hidden_dim, 1), std=1.0),
             )
 
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=lr)
-
     def act(self, state):
         if not isinstance(state, torch.Tensor):
             state = torch.tensor(state, dtype=torch.float32)
@@ -57,7 +55,7 @@ class PolicyGradient(nn.Module):
 
         return actions, log_probs, entropy, values
 
-    def update(self, buffer):
+    def update(self, buffer, optimizer):
         model_device = next(self.parameters()).device  #device on this object
 
         batch = buffer.get()
@@ -104,10 +102,10 @@ class PolicyGradient(nn.Module):
                 ent_loss = entropy.mean()
                 loss = pg_loss - self.ent_coef * ent_loss + self.vf_coef * v_loss
 
-                self.optimizer.zero_grad(set_to_none=True)
+                optimizer.zero_grad(set_to_none=True)
                 loss.backward()
                 nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm, foreach=foreach)
-                self.optimizer.step()
+                optimizer.step()
 
                 last_loss = float(loss.detach().cpu())
 
