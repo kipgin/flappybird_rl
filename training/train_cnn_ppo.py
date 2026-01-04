@@ -7,6 +7,7 @@ import numpy as np
 from datetime import datetime
 import flappy_bird_gymnasium
 import time
+import cv2 # Import cv2 for debug image
 
 # from gymnasium.vector import AsyncVectorEnv
 # from gymnasium.wrappers import GrayScaleObservation, ResizeObservation, FrameStack
@@ -171,10 +172,11 @@ def train_cnn_ppo():
     envs = AsyncVectorEnv([make_env(env_id, seed, i, num_frames,frame_skip) for i in range(num_envs)])
     action_dim = envs.single_action_space.n
     obs, _ = envs.reset(seed=seed)
+    
     obs_cpu0 = _obs_to_tensor_for_cnn(obs, CPU_DEVICE)
     cnn_state_shape = tuple(obs_cpu0.shape[1:])
 
-    agent_learner = PPO_CNN(
+    agent = PPO_CNN(
         clip_coef=clip_coef,
         vf_coef=vf_coef,
         ent_coef=ent_coef,
@@ -188,34 +190,19 @@ def train_cnn_ppo():
         cfg=cfg,                           
     ).to(DEVICE)
 
-    agent_actor = PPO_CNN(
-        clip_coef=clip_coef,
-        vf_coef=vf_coef,
-        ent_coef=ent_coef,
-        lr=lr,
-        max_grad_norm=max_grad_norm,
-        update_epochs=update_epochs,
-        num_minibatches=num_minibatches,
-        obs_shape=cnn_state_shape,
-        action_dim=action_dim,
-        layer_size=layer_size,
-        cfg=cfg,                            
-    ).to(DEVICE)
-
-    agent_actor.load_state_dict(agent_learner.state_dict())
-    agent_actor.eval()
-    agent_learner.train()
+    agent.optimizer = torch.optim.Adam(agent.parameters(), lr=lr, eps=1e-5)
+    agent.train()
 
 
     with torch.no_grad():
         dummy = torch.zeros((num_envs, *cnn_state_shape), device=DEVICE, dtype=torch.float32)
-        agent_learner.get_action_and_value(dummy)
-        agent_learner.get_value(dummy)
+        agent.get_action_and_value(dummy)
+        agent.get_value(dummy)
         if hasattr(torch, "xpu") and DEVICE.type == "xpu":
             torch.xpu.synchronize()
-    print("Warm-up learner done.", flush=True)
+    print("Warm-up done.", flush=True)
 
-    optimizer = agent_learner.optimizer
+    optimizer = agent.optimizer
 
     buffer = RolloutBuffer(
         num_steps=num_steps,
@@ -243,24 +230,17 @@ def train_cnn_ppo():
             optimizer.param_groups[0]["lr"] = lrnow
 
         for step in range(num_steps):
+            # if epoch == 0 and step == 50:
+            #     last_frame = obs_cpu[0, -1].detach().cpu().numpy()  # [H, W], float in [0,1]
+            #     img = (last_frame * 255.0).clip(0, 255).astype(np.uint8)
+            #     cv2.imwrite("debug_cnn_input_step50.png", img)
+            
             # print(f"Dang o step {step}, epoch thu {epoch}")
             obs_cpu = _obs_to_tensor_for_cnn(obs, CPU_DEVICE)
 
             obs_dev = obs_cpu.to(DEVICE, non_blocking=True)
             with torch.no_grad():
-                actions_dev, logprobs_dev, _, values_dev = agent_actor.get_action_and_value(obs_dev)
-            
-            
-            
-            # next_obs, rewards, terminated, truncated, infos = envs.step(actions_cpu.cpu().numpy())
-            # dones_np = np.logical_or(terminated, truncated)
-
-            # obs_dev = obs_cpu.to(DEVICE, non_blocking=True)
-            # actions_dev = actions_cpu.to(DEVICE, non_blocking=True).long().view(-1) 
-            # logprobs_dev = logprobs_cpu.to(DEVICE, non_blocking=True).view(-1)       
-            # rewards_dev = torch.as_tensor(rewards, dtype=torch.float32, device=DEVICE).view(-1)
-            # dones_dev = torch.as_tensor(dones_np, dtype=torch.float32, device=DEVICE).view(-1)  
-            # values_dev = values_cpu.to(DEVICE, non_blocking=True).view(-1)
+                actions_dev, logprobs_dev, _, values_dev = agent.get_action_and_value(obs_dev)
             
             actions_np = actions_dev.detach().cpu().numpy()
             next_obs, rewards, terminated, truncated, infos = envs.step(actions_np)
@@ -274,8 +254,6 @@ def train_cnn_ppo():
             rewards_cpu = torch.as_tensor(rewards, dtype=torch.float32, device=CPU_DEVICE).view(-1)
             dones_cpu = torch.as_tensor(dones_buffer, dtype=torch.float32, device=CPU_DEVICE).view(-1)
 
-            # buffer.add(obs_dev, actions_dev, logprobs_dev, rewards_dev, dones_dev, values_dev)
-            # buffer.add(obs_dev, actions_dev, logprobs_dev, rewards_dev, dones_dev, values_dev)
             buffer.add(obs_cpu, actions_cpu, logprobs_cpu, rewards_cpu, dones_cpu, values_cpu)
 
 
@@ -289,31 +267,18 @@ def train_cnn_ppo():
                     current_episode_rewards[i] = 0.0
                     current_episode_lengths[i] = 0
 
-
-            # for i in range(num_envs):
-            #     if dones_np[i]:
-            #         current_episode_rewards[i] = 0.0
-            #         current_episode_lengths[i] = 0
-
             obs = next_obs
 
         with torch.no_grad():
-            # last_obs_cpu = _obs_to_tensor_for_cnn(obs, CPU_DEVICE)
-            # last_values = agent_actor.get_value(last_obs_cpu).flatten().to(DEVICE)
-            # last_dones = dones_dev  
-            # buffer.compute_returns_and_advantages(last_values, last_dones, gamma, gae_lambda)
             last_obs_cpu = _obs_to_tensor_for_cnn(obs, CPU_DEVICE)
             last_obs_dev = last_obs_cpu.to(DEVICE, non_blocking=True)
-            _, _, _, last_values_dev = agent_actor.get_action_and_value(last_obs_dev)
+            _, _, _, last_values_dev = agent.get_action_and_value(last_obs_dev)
 
             last_values = last_values_dev.detach().cpu().flatten()
             last_dones = dones_cpu  #cpu tensor
             buffer.compute_returns_and_advantages(last_values, last_dones, gamma, gae_lambda)
 
-        loss = agent_learner.update(buffer)
-
-        agent_actor.load_state_dict(agent_learner.state_dict())
-        agent_actor.eval()
+        loss = agent.update(buffer)
 
         if episode_rewards:
             avg_reward = float(np.mean(episode_rewards[-100:]))
@@ -333,12 +298,10 @@ def train_cnn_ppo():
             print(f"Epoch {epoch}/{total_epochs}")
             print(f"  Avg Reward (last 100): {avg_reward:.2f}")
             print(f"  Avg Length (last 100): {avg_length:.2f}")
-            # print(f"  Episodes completed: {len(episode_rewards)}")
 
         if epoch % 100 == 99:
-            # best_avg_reward = avg_reward
             save_checkpoint(
-                model=agent_learner,
+                model=agent,
                 optimizer=optimizer,
                 epoch=epoch,
                 avg_reward=avg_reward,
@@ -349,7 +312,7 @@ def train_cnn_ppo():
         buffer.clear()
 
     save_checkpoint(
-        model=agent_learner,
+        model=agent,
         optimizer=optimizer,
         epoch=total_epochs,
         avg_reward=best_avg_reward if episode_rewards else 0.0,

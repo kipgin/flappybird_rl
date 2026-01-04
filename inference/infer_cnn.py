@@ -152,7 +152,7 @@ def select_action(model, algo: str, obs_t: torch.Tensor, deterministic: bool) ->
         return int(q.argmax(dim=1).item())
     if algo in ("cnn_ppo", "cnn_policy_gradient"):
         if deterministic:
-            logits = model.actor(model.encoder_actor(obs_t))
+            logits = model.actor(model.network(obs_t))
             return int(logits.argmax(dim=-1).item())
         action, _, _, _ = model.get_action_and_value(obs_t)
         return int(action.item())

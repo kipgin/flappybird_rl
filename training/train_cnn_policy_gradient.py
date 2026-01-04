@@ -136,7 +136,6 @@ def _obs_to_tensor_for_cnn(obs, device: torch.device) -> torch.Tensor:
 
 def train_cnn_policy_gradient():
     cfg = config()
-    debug = bool(cfg.get("debug", False))
 
     env_id = cfg["env_id"]
     num_envs = int(cfg["num_envs"])
@@ -171,7 +170,7 @@ def train_cnn_policy_gradient():
     obs_cpu0 = _obs_to_tensor_for_cnn(obs, CPU_DEVICE)
     print(obs.shape)
     cnn_state_shape = tuple(obs_cpu0.shape[1:]) 
-    agent_learner = PolicyGradient_CNN(
+    agent = PolicyGradient_CNN(
         vf_coef=vf_coef,
         ent_coef=ent_coef,
         lr=lr,
@@ -183,64 +182,20 @@ def train_cnn_policy_gradient():
         cfg=cfg,
     ).to(DEVICE)
 
-    agent_actor = PolicyGradient_CNN(
-        vf_coef=vf_coef,
-        ent_coef=ent_coef,
-        lr=lr,
-        max_grad_norm=max_grad_norm,
-        obs_shape=cnn_state_shape,
-        action_dim=action_dim,
-        hidden_dim=hidden_dim,
-        use_baseline=use_baseline,
-        cfg=cfg,
-    ).to(DEVICE)
+    
+    agent.optimizer = torch.optim.Adam(agent.parameters(), lr=lr)
 
-    print("======CHECKING param")
-    print(f"use_baseline = {agent_learner.use_baseline}")
-    print(f"num_minibatches = {agent_learner.num_minibatches}")
-    print(f"num_update_epochs ={agent_learner.update_epochs}")
+    agent.train()
 
-    agent_actor.load_state_dict(agent_learner.state_dict())
-    agent_actor.eval()
-    agent_learner.train()
-
-    # Warm-up
+    #Warm-up
     with torch.no_grad():
         dummy = torch.zeros((num_envs, *cnn_state_shape), device=DEVICE, dtype=torch.float32)
-        agent_learner.get_action_and_value(dummy)
-        if debug and hasattr(torch, "xpu") and DEVICE.type == "xpu":
+        agent.get_action_and_value(dummy)
+        if hasattr(torch, "xpu") and DEVICE.type == "xpu":
             torch.xpu.synchronize()
-    print("Warm-up learner done.", flush=True)
+    print("Warm-up done.", flush=True)
 
-    optimizer = agent_learner.optimizer
-
-
-    # them vao de add parameter cua CNN cho optimizer
-    # agent_learner.optimizer = torch.optim.Adam(agent_learner.parameters(), lr=lr)
-    # optimizer = agent_learner.optimizer
-
-
-    opt_param_ids = {id(p) for g in optimizer.param_groups for p in g["params"]}
-    enc_params = list(agent_learner.encoder_actor.parameters()) + list(agent_learner.encoder_critic.parameters())
-    n_enc = sum(p.numel() for p in enc_params)
-    n_enc_in_opt = sum(p.numel() for p in enc_params if id(p) in opt_param_ids)
-    print(f"===============DEBUG=== encoder params in optimizer: {n_enc_in_opt}/{n_enc} elements")
-    # Updated debug print for Shared Network
-    net_params = list(agent_learner.network.parameters())
-    n_net = sum(p.numel() for p in net_params)
-    n_net_in_opt = sum(p.numel() for p in net_params if id(p) in opt_param_ids)
-    print(f"===============DEBUG=== network params in optimizer: {n_net_in_opt}/{n_net} elements")
-
-    actor_params = list(agent_learner.actor.parameters())
-    critic_params = list(agent_learner.critic.parameters())
-    n_actor = sum(p.numel() for p in actor_params)
-    n_critic = sum(p.numel() for p in critic_params)
-    n_actor_in_opt = sum(p.numel() for p in actor_params if id(p) in opt_param_ids)
-    n_critic_in_opt = sum(p.numel() for p in critic_params if id(p) in opt_param_ids)
-    print(f"===============DEBUG=== actor params in optimizer: {n_actor_in_opt}/{n_actor} elements")
-    print(f"===============DEBUG=== critic params in optimizer: {n_critic_in_opt}/{n_critic} elements")
-    # ... (rest of debug prints can be simplified or removed as structure is simpler now)
-
+    optimizer = agent.optimizer
 
     buffer = RolloutBuffer(
         num_steps=num_steps,
@@ -262,9 +217,8 @@ def train_cnn_policy_gradient():
     time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     for epoch in range(total_epochs):
-        # --- Learning Rate Annealing ---
         if anneal_lr:
-            frac = 1.0 - (epoch - 1.0) / total_epochs
+            frac = 1.0 - epoch/ total_epochs
             lrnow = frac * lr
             optimizer.param_groups[0]["lr"] = lrnow
 
@@ -273,7 +227,7 @@ def train_cnn_policy_gradient():
 
             obs_dev = obs_cpu.to(DEVICE, non_blocking=True)
             with torch.no_grad():
-                actions_dev, logprobs_dev, _, values_dev = agent_actor.get_action_and_value(obs_dev)
+                actions_dev, logprobs_dev, _, values_dev = agent.get_action_and_value(obs_dev)
 
             actions_np = actions_dev.detach().cpu().numpy()
             next_obs, rewards, terminated, truncated, infos = envs.step(actions_np)
@@ -292,15 +246,6 @@ def train_cnn_policy_gradient():
             current_episode_rewards += rewards.astype(np.float32)
             current_episode_lengths += 1
             
-            # final_infos = infos.get("final_info", None)
-            # if final_infos is not None:
-            #     for i, finfo in enumerate(final_infos):
-            #         if finfo and "episode" in finfo:
-            #             episode_rewards.append(float(finfo["episode"]["r"]))
-            #             episode_lengths.append(int(finfo["episode"]["l"]))
-            #             current_episode_rewards[i] = 0.0
-            #             current_episode_lengths[i] = 0
-            # else:
             for i in range(num_envs):
                 if dones_np[i]:
                     episode_rewards.append(float(current_episode_rewards[i]))
@@ -313,17 +258,13 @@ def train_cnn_policy_gradient():
         with torch.no_grad():
             last_obs_cpu = _obs_to_tensor_for_cnn(obs, CPU_DEVICE)
             last_obs_dev = last_obs_cpu.to(DEVICE, non_blocking=True)
-            _, _, _, last_values_dev = agent_actor.get_action_and_value(last_obs_dev)
+            _, _, _, last_values_dev = agent.get_action_and_value(last_obs_dev)
 
             last_values = last_values_dev.detach().cpu().flatten()
             last_dones = dones_cpu  #cpu tensor
             buffer.compute_returns_and_advantages(last_values, last_dones, gamma, gae_lambda)
 
-        loss = agent_learner.update(buffer)
-
-       
-        agent_actor.load_state_dict(agent_learner.state_dict())
-        agent_actor.eval()
+        loss = agent.update(buffer)
 
         if episode_rewards:
             avg_reward = float(np.mean(episode_rewards[-100:]))
@@ -348,7 +289,7 @@ def train_cnn_policy_gradient():
         if epoch % 100 == 99:
             # best_avg_reward = avg_reward
             save_checkpoint(
-                model=agent_learner,
+                model=agent,
                 optimizer=optimizer,
                 epoch=epoch,
                 avg_reward=avg_reward,
@@ -359,7 +300,7 @@ def train_cnn_policy_gradient():
         buffer.clear()
 
     save_checkpoint(
-        model=agent_learner,
+        model=agent,
         optimizer=optimizer,
         epoch=total_epochs,
         avg_reward=best_avg_reward if episode_rewards else 0.0,
