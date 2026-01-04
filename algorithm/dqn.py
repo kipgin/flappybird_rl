@@ -1,31 +1,35 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-# from utils import *
+import numpy as np
+
+def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
+    torch.nn.init.orthogonal_(layer.weight, std)
+    torch.nn.init.constant_(layer.bias, bias_const)
+    return layer
 
 class DQN(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim, enable_dueling_dqn=True):
         super().__init__()
         self.enable_dueling_dqn = bool(enable_dueling_dqn)
 
-        self.fc1 = nn.Linear(state_dim, hidden_dim)
+        self.fc1 = layer_init(nn.Linear(state_dim, hidden_dim))
         self.ln1 = nn.LayerNorm(hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        self.fc2 = layer_init(nn.Linear(hidden_dim, hidden_dim))
         self.ln2 = nn.LayerNorm(hidden_dim)
 
         if self.enable_dueling_dqn:
-            self.v_fc = nn.Linear(hidden_dim, hidden_dim)
+            self.v_fc = layer_init(nn.Linear(hidden_dim, hidden_dim))
             self.v_ln = nn.LayerNorm(hidden_dim)
-            self.v_out = nn.Linear(hidden_dim, 1)
+            self.v_out = layer_init(nn.Linear(hidden_dim, 1))
 
-            self.a_fc = nn.Linear(hidden_dim, hidden_dim)
+            self.a_fc = layer_init(nn.Linear(hidden_dim, hidden_dim))
             self.a_ln = nn.LayerNorm(hidden_dim)
-            self.a_out = nn.Linear(hidden_dim, action_dim)
+            self.a_out = layer_init(nn.Linear(hidden_dim, action_dim))
         else:
-            self.q_out = nn.Linear(hidden_dim, action_dim)
+            self.q_out = layer_init(nn.Linear(hidden_dim, action_dim))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # accept single state (state_dim,) -> (1, state_dim)
         if x.dim() == 1:
             x = x.unsqueeze(0)
 
@@ -107,4 +111,3 @@ if __name__ == '__main__':
         print(output)
         print(output.argmax())
     # print(output)
-

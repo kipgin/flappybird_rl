@@ -1,9 +1,12 @@
 import torch
 import torch.nn as nn
+import numpy as np
+import torch.nn.functional as F
 
 from algorithm.dqn import DQN
 from algorithm.policy_gradient import PolicyGradient
 from algorithm.ppo import PPO
+from utils import layer_init
 
 #doc file hyperparmeters.yml
 def _make_cnn_cfg(cfg: dict) -> dict:
@@ -17,7 +20,6 @@ def _make_cnn_cfg(cfg: dict) -> dict:
         "activation": str(cfg.get("activation", "relu")).lower(),
         "head_hidden": int(cfg.get("head_hidden", 256)),
     }
-
 
 class CNNEncoder(nn.Module):
     def __init__(self, cfg: dict):
@@ -44,14 +46,18 @@ class CNNEncoder(nn.Module):
             in_channels = out_ch
 
         self.hidden_size = hidden_size
-        self.conv = nn.Sequential(*layers)
+
+        self.conv = nn.Sequential(*[
+            layer_init(layer) if isinstance(layer, nn.Conv2d) else layer 
+            for layer in layers
+        ])
         self.flatten = nn.Flatten()
         
         with torch.no_grad():
             dummy_input = torch.zeros(1, int(cfg["input_channels"]), 84, 84)
             n_flatten = self.conv(dummy_input).view(1, -1).shape[1]
             
-        self.fc = nn.Linear(n_flatten, hidden_size)
+        self.fc = layer_init(nn.Linear(n_flatten, hidden_size))
         self.act = act_fn()
 
     def _init_fc(self, x: torch.Tensor):
@@ -73,10 +79,25 @@ class DQN_CNN(DQN):
         ccfg = _make_cnn_cfg(cfg)
         super().__init__(state_dim=int(ccfg["hidden_size"]), action_dim=action_dim, hidden_dim=hidden_dim, enable_dueling_dqn=enable_dueling_dqn)
         self.encoder = CNNEncoder(ccfg)
+        
+        feature_dim = int(ccfg["hidden_size"])
+        if self.enable_dueling_dqn:
+            self.v_head = layer_init(nn.Linear(feature_dim, 1))
+            self.a_head = layer_init(nn.Linear(feature_dim, action_dim))
+        else:
+            self.q_head = layer_init(nn.Linear(feature_dim, action_dim))
 
     def forward(self, obs: torch.Tensor) -> torch.Tensor:
-        features = self.encoder(obs)
-        return super().forward(features)
+        x = self.encoder(obs)
+        
+        if self.enable_dueling_dqn:
+            V = self.v_head(x)
+            A = self.a_head(x)
+            Q = V + A - A.mean(dim=1, keepdim=True)
+        else:
+            Q = self.q_head(x)
+            
+        return Q
 
 
 class PPO_CNN(PPO):
@@ -96,24 +117,29 @@ class PPO_CNN(PPO):
                          update_epochs, 
                          num_minibatches,
                          state_dim=feature_dim, action_dim=action_dim, layer_size=layer_size)
-        self.encoder_actor = CNNEncoder(ccfg)
-        self.encoder_critic = CNNEncoder(ccfg)
+        
+        self.network = CNNEncoder(ccfg)
+        
+        self.actor = layer_init(nn.Linear(feature_dim, action_dim), std=0.01)
+        self.critic = layer_init(nn.Linear(feature_dim, 1), std=1.0)
+        
         self.optimizer = torch.optim.Adam(self.parameters(), lr=lr, eps=1e-5)
-
+    
     def get_value(self, obs: torch.Tensor):
-        features = self.encoder_critic(obs)
-        return self.critic(features).flatten()
+        hidden = self.network(obs)
+        return self.critic(hidden).flatten()
 
     def get_action_and_value(self, obs: torch.Tensor, action=None):
-        features_a = self.encoder_actor(obs)
-        logits = self.actor(features_a)
+        hidden = self.network(obs)
+        logits = self.actor(hidden)
         probs = torch.distributions.Categorical(logits=logits)
         if action is None:
             action = probs.sample()
         log_prob = probs.log_prob(action)
         entropy = probs.entropy()
-        features_v = self.encoder_critic(obs)
-        value = self.critic(features_v).flatten()
+        
+        value = self.critic(hidden).flatten()
+        
         return action, log_prob, entropy, value
 
 
@@ -135,20 +161,16 @@ class PolicyGradient_CNN(PolicyGradient):
                          update_epochs=update_epochs,
                          num_minibatches=num_minibatches
                          )
-        self.encoder_actor = CNNEncoder(ccfg)
-        self.encoder_critic = CNNEncoder(ccfg)
         
+        self.network = CNNEncoder(ccfg)
+
+        
+        self.actor = layer_init(nn.Linear(feature_dim, action_dim), std=0.01)
+        if self.use_baseline:
+            self.critic = layer_init(nn.Linear(feature_dim, 1), std=1.0)
         
         self.optimizer = torch.optim.Adam(self.parameters(), lr=lr)
 
     def get_action_and_value(self, obs: torch.Tensor, actions=None):
-        features = self.encoder_actor(obs)
-        logits = self.actor(features)
-        probs = torch.distributions.Categorical(logits=logits)
-        if actions is None:
-            actions = probs.sample()
-        log_probs = probs.log_prob(actions)
-        entropy = probs.entropy()
-
-        v = self.critic(self.encoder_critic(obs)).squeeze(-1)
-        return actions, log_probs, entropy, v
+        features = self.network(obs)
+        return super().get_action_and_value(features, actions)

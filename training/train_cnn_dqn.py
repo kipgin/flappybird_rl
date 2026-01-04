@@ -143,7 +143,7 @@ def train_cnn_dqn():
     learning_rate_a = float(hp["learning_rate_a"])
     discount_factor_g = float(hp["discount_factor_g"])
     network_sync_rate = int(hp["network_sync_rate"])
-
+    max_grad_norm = float(hp.get("max_grad_norm", 10.0))
     enable_double_dqn = bool(hp.get("enable_double_dqn", False))
     enable_dueling_dqn = bool(hp.get("enable_dueling_dqn", False))
 
@@ -153,9 +153,9 @@ def train_cnn_dqn():
     num_envs = int(hp.get("num_envs", 8))
     total_timesteps = int(hp.get("total_timesteps", 5_000_000))
     learning_starts = int(hp.get("learning_starts", 20_000))
-    train_freq = int(hp.get("train_freq", 1))          # do 1 update per env step (vector step)
-    gradient_steps = int(hp.get("gradient_steps", 1))  # number of updates each train event
-    vector_mode = str(hp.get("vector_mode", "sync")).lower()  # "sync" (safer) or "async"
+    train_freq = int(hp.get("train_freq", 1))          
+    gradient_steps = int(hp.get("gradient_steps", 1))  
+    vector_mode = str(hp.get("vector_mode", "sync")).lower()  
 
 
     use_per = bool(hp.get("use_per", False))
@@ -276,6 +276,9 @@ def train_cnn_dqn():
     print(f"Episodes: {total_timesteps}, Replay: {replay_memory_size}, Batch: {mini_batch_size}, Device: {DEVICE}")
 
     global_step = 0
+
+    exploration_steps = int(total_timesteps * 0.2)
+
     while global_step < total_timesteps:
         #epsilon-greedy
         rand_mask = (np.random.rand(num_envs) < epsilon)
@@ -325,7 +328,11 @@ def train_cnn_dqn():
         obs = next_obs
         global_step += num_envs
 
-        epsilon = max(epsilon * epsilon_decay, epsilon_min)
+      
+        if global_step < exploration_steps:
+            epsilon = epsilon_init - (epsilon_init - epsilon_min) * (global_step / exploration_steps)
+        else:
+            epsilon = epsilon_min
 
         #updating learner
         if buffer.real_size >= mini_batch_size and global_step >= learning_starts and (global_step // num_envs) % train_freq == 0:
@@ -362,6 +369,7 @@ def train_cnn_dqn():
 
                 optimizer.zero_grad(set_to_none=True)
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(agent.parameters(), max_grad_norm)
                 optimizer.step()
                 
 

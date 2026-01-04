@@ -2,7 +2,7 @@ import torch
 import torch.optim as optim
 import numpy as np
 from torch import nn
-from utils import * 
+from utils import layer_init
 import time
 # device = ''
 
@@ -19,7 +19,7 @@ import time
 
 class PPO(nn.Module):
     def __init__(self, clip_coef, vf_coef, ent_coef, lr, max_grad_norm, update_epochs, num_minibatches,state_dim,action_dim,layer_size):
-        # self.agent = agent
+
         super().__init__()
         self.clip_coef = clip_coef
         self.vf_coef = vf_coef
@@ -37,10 +37,10 @@ class PPO(nn.Module):
             layer_init(nn.Linear(layer_size, 1), std=1.0) 
         )
         self.actor = nn.Sequential(
-            layer_init(nn.Linear(state_dim, layer_size)),
-            nn.ReLU(),
-            layer_init(nn.Linear(layer_size, layer_size)),
-            nn.ReLU(),
+            # layer_init(nn.Linear(state_dim, layer_size)),
+            # nn.ReLU(),
+            # layer_init(nn.Linear(layer_size, layer_size)),
+            # nn.ReLU(),
             layer_init(nn.Linear(layer_size, action_dim), std=0.01) 
         )
         self.optimizer = optim.Adam(self.parameters(), lr=lr, eps=1e-5)

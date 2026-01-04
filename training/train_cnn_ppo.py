@@ -157,6 +157,7 @@ def train_cnn_ppo():
     update_epochs = int(cfg["update_epochs"])
     num_minibatches = int(cfg["num_minibatches"])
 
+    anneal_lr = bool(cfg.get("anneal_lr", False))
     layer_size = int(cfg["layer_size"])
     num_frames = int(cfg["frame_stack"])
     seed = int(cfg.get("seed", 42))
@@ -224,8 +225,6 @@ def train_cnn_ppo():
         device=CPU_DEVICE,
     )
 
-    
-
     best_avg_reward = -float("inf")
     episode_rewards = []
     episode_lengths = []
@@ -236,50 +235,13 @@ def train_cnn_ppo():
     print(f"Total epochs: {total_epochs}, Steps per epoch: {num_steps}, Num envs: {num_envs}")
 
     time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-    # for epoch in range(total_epochs):
-    #     t_epoch0 = time.time()
 
-    #     for step in range(num_steps):
-    #         print(f"Dang o step {step}, epoch thu {epoch}", flush=True)
-
-    #         t0 = time.time()
-    #         obs_cpu = _obs_to_tensor_for_cnn(obs, CPU_DEVICE)
-    #         with torch.no_grad():
-    #             actions_cpu, logprobs_cpu, _, values_cpu = agent_actor.get_action_and_value(obs_cpu)
-    #         # t1 = time.time()
-
-    #         next_obs, rewards, terminated, truncated, infos = envs.step(actions_cpu.cpu().numpy())
-    #         # t2 = time.time()
-
-    #         dones_np = np.logical_or(terminated, truncated)
-
-    #         obs_dev = obs_cpu.to(DEVICE, non_blocking=True)
-    #         actions_dev = actions_cpu.to(DEVICE, non_blocking=True).long().view(-1)
-    #         logprobs_dev = logprobs_cpu.to(DEVICE, non_blocking=True).view(-1)
-    #         rewards_dev = torch.as_tensor(rewards, dtype=torch.float32, device=DEVICE).view(-1)
-    #         dones_dev = torch.as_tensor(dones_np, dtype=torch.float32, device=DEVICE).view(-1)
-    #         values_dev = values_cpu.to(DEVICE, non_blocking=True).view(-1)
-
-    #         buffer.add(obs_dev, actions_dev, logprobs_dev, rewards_dev, dones_dev, values_dev)
-
-    #         obs = next_obs
-
-    #         # print(f"  timing: infer={t1-t0:.3f}s | env.step={t2-t1:.3f}s", flush=True)
-
-    #     # print("Dang tinh GAE...", flush=True)
-    #     with torch.no_grad():
-    #         last_obs_cpu = _obs_to_tensor_for_cnn(obs, CPU_DEVICE)
-    #         last_values = agent_actor.get_value(last_obs_cpu).flatten().to(DEVICE)
-    #         last_dones = dones_dev
-    #         buffer.compute_returns_and_advantages(last_values, last_dones, gamma, gae_lambda)
-
-    #     # print("Dang update (PPO)...", flush=True)
-    #     # t_up0 = time.time()
-    #     loss = agent_learner.update(buffer)
-        # if hasattr(torch, "xpu") and DEVICE.type == "xpu":
-        #     torch.xpu.synchronize()
-        # print(f"Update xong, update_time={time.time()-t_up0:.3f}s, epoch_time={time.time()-t_epoch0:.3f}s", flush=True)
     for epoch in range(total_epochs):
+        if anneal_lr:
+            frac = 1.0 - epoch / total_epochs
+            lrnow = frac * lr
+            optimizer.param_groups[0]["lr"] = lrnow
+
         for step in range(num_steps):
             # print(f"Dang o step {step}, epoch thu {epoch}")
             obs_cpu = _obs_to_tensor_for_cnn(obs, CPU_DEVICE)

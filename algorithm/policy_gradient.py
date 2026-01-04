@@ -2,19 +2,8 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from torch.distributions import Categorical
+import numpy as np
 from utils import *
-
-# class ValueNetwork(nn.Module):
-#     def __init__(self, state_dim, hidden_dim):
-#         super(ValueNetwork, self).__init__()
-#         self.critic = nn.Sequential(
-#             layer_init(nn.Linear(state_dim, hidden_dim)),
-#             nn.Tanh(), 
-#             layer_init(nn.Linear(hidden_dim, hidden_dim)),
-#             nn.Tanh(),  
-#             layer_init(nn.Linear(hidden_dim, 1), std=1.0) 
-#         )
-
 
 class PolicyGradient(nn.Module):
     def __init__(self, vf_coef, ent_coef, lr, max_grad_norm, state_dim, action_dim, hidden_dim, use_baseline=True,update_epochs=1,num_minibatches =1):

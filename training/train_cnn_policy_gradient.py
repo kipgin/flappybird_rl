@@ -151,6 +151,7 @@ def train_cnn_policy_gradient():
     lr = float(cfg["lr"])
     max_grad_norm = float(cfg["max_grad_norm"])
     num_minibatches = int(cfg["num_minibatches"])
+    anneal_lr = bool(cfg.get("anneal_lr", True)) 
 
     hidden_dim = int(cfg["hidden_dim"])
     use_baseline = bool(cfg.get("use_baseline", True))
@@ -224,6 +225,11 @@ def train_cnn_policy_gradient():
     n_enc = sum(p.numel() for p in enc_params)
     n_enc_in_opt = sum(p.numel() for p in enc_params if id(p) in opt_param_ids)
     print(f"===============DEBUG=== encoder params in optimizer: {n_enc_in_opt}/{n_enc} elements")
+    # Updated debug print for Shared Network
+    net_params = list(agent_learner.network.parameters())
+    n_net = sum(p.numel() for p in net_params)
+    n_net_in_opt = sum(p.numel() for p in net_params if id(p) in opt_param_ids)
+    print(f"===============DEBUG=== network params in optimizer: {n_net_in_opt}/{n_net} elements")
 
     actor_params = list(agent_learner.actor.parameters())
     critic_params = list(agent_learner.critic.parameters())
@@ -233,6 +239,7 @@ def train_cnn_policy_gradient():
     n_critic_in_opt = sum(p.numel() for p in critic_params if id(p) in opt_param_ids)
     print(f"===============DEBUG=== actor params in optimizer: {n_actor_in_opt}/{n_actor} elements")
     print(f"===============DEBUG=== critic params in optimizer: {n_critic_in_opt}/{n_critic} elements")
+    # ... (rest of debug prints can be simplified or removed as structure is simpler now)
 
 
     buffer = RolloutBuffer(
@@ -255,6 +262,12 @@ def train_cnn_policy_gradient():
     time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     for epoch in range(total_epochs):
+        # --- Learning Rate Annealing ---
+        if anneal_lr:
+            frac = 1.0 - (epoch - 1.0) / total_epochs
+            lrnow = frac * lr
+            optimizer.param_groups[0]["lr"] = lrnow
+
         for step in range(num_steps):
             obs_cpu = _obs_to_tensor_for_cnn(obs, CPU_DEVICE)
 
