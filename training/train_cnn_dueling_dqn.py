@@ -12,6 +12,7 @@ from gymnasium.spaces import Box
 
 from gymnasium.wrappers import GrayscaleObservation as _GrayscaleObservation
 from gymnasium.wrappers import FrameStackObservation as _FrameStack
+from gymnasium.wrappers import ResizeObservation as _ResizeObservation
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -54,6 +55,8 @@ def make_env(env_id: str, env_make_params: dict, num_frames: int, seed: int):
     env = gym.make(env_id, render_mode="rgb_array", **env_make_params)
     env = RenderObservation(env)
     env = gym.wrappers.RecordEpisodeStatistics(env)
+
+    env = _ResizeObservation(env, (128, 72))
     try:
         env = _GrayscaleObservation(env, keep_dim=False)
     except TypeError:

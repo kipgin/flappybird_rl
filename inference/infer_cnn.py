@@ -14,6 +14,7 @@ from gymnasium.spaces import Box
 
 from gymnasium.wrappers import GrayscaleObservation as _GrayscaleObservation
 from gymnasium.wrappers import FrameStackObservation as _FrameStack
+from gymnasium.wrappers import ResizeObservation as _ResizeObservation
 
 
 import flappy_bird_gymnasium  
@@ -108,6 +109,7 @@ def make_env(env_id: str, cfg: dict, seed: int, num_frames: int, record_video_di
         env = gym.wrappers.RecordVideo(env, video_folder=record_video_dir, episode_trigger=lambda ep: True)
     env = RenderObservation(env)
     # env = gym.wrappers.RecordEpisodeStatistics(env)
+    env = _ResizeObservation(env, (128, 72))
     try:
         env = _GrayscaleObservation(env, keep_dim=False)
     except TypeError:
