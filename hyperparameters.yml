@@ -93,7 +93,7 @@ ppo_flappybird:
   activation: "relu"         
   normalize_obs: true        
   grayscale: true           
-  frame_skip: 4
+  frame_skip: 2
   env_make_params:
     use_lidar: False          
 

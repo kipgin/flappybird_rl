@@ -7,7 +7,6 @@ import numpy as np
 from datetime import datetime
 import flappy_bird_gymnasium
 import time
-import cv2 # Import cv2 for debug image
 
 # from gymnasium.vector import AsyncVectorEnv
 # from gymnasium.wrappers import GrayScaleObservation, ResizeObservation, FrameStack
@@ -229,12 +228,6 @@ def train_cnn_ppo():
             optimizer.param_groups[0]["lr"] = lrnow
 
         for step in range(num_steps):
-            # if epoch == 0 and step == 50:
-            #     last_frame = obs_cpu[0, -1].detach().cpu().numpy()  # [H, W], float in [0,1]
-            #     img = (last_frame * 255.0).clip(0, 255).astype(np.uint8)
-            #     cv2.imwrite("debug_cnn_input_step50.png", img)
-            
-            # print(f"Dang o step {step}, epoch thu {epoch}")
             obs_cpu = _obs_to_tensor_for_cnn(obs, CPU_DEVICE)
 
             obs_dev = obs_cpu.to(DEVICE, non_blocking=True)

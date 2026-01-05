@@ -5,6 +5,7 @@ import torch
 import gymnasium as gym
 import numpy as np
 from datetime import datetime
+from collections import deque
 import flappy_bird_gymnasium  
 
 from gymnasium import ObservationWrapper
@@ -252,10 +253,11 @@ def train_cnn_dqn():
 
     time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_every_steps = 10000
-    ckpt_every_steps =  200000
-    best_avg_reward = -float("inf")
-    episode_rewards = []
-    episode_lengths = []
+    ckpt_every_steps =  100000
+    best_avg_reward = -30
+    episode_rewards = deque(maxlen=100)
+    episode_lengths = deque(maxlen=100)
+    total_episodes = 0
 
 
     last_loss_value = 0.0
@@ -308,6 +310,7 @@ def train_cnn_dqn():
             for i in done_idxs.tolist():
                 episode_rewards.append(float(ep_ret[i]))
                 episode_lengths.append(int(ep_len[i]))
+                total_episodes += 1
                 ep_ret[i] = 0.0
                 ep_len[i] = 0
 
@@ -378,8 +381,8 @@ def train_cnn_dqn():
 
         # logging
         if episode_rewards:
-            avg_reward = float(np.mean(episode_rewards[-100:]))
-            avg_length = float(np.mean(episode_lengths[-100:]))
+            avg_reward = float(np.mean(episode_rewards))
+            avg_length = float(np.mean(episode_lengths))
             best_avg_reward = max(best_avg_reward, avg_reward)
         else:
             avg_reward = 0.0
@@ -393,7 +396,7 @@ def train_cnn_dqn():
             path=f"flappy_bird_cnn_dqn/{time_str}/train_performance_log.csv",
         )
         if global_step % log_every_steps == 0:
-            print(f"Steps={global_step} | eps={epsilon:.3f} | Episodes={len(episode_rewards)}")
+            print(f"Steps={global_step} | eps={epsilon:.3f} ")
             print(f"  Avg Reward (last 100): {avg_reward:.2f}")
             print(f"  Avg Length (last 100): {avg_length:.2f}")
             print(f"  Loss: {last_loss_value:.6f}")
