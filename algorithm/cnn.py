@@ -10,6 +10,7 @@ from utils import layer_init
 
 #doc file hyperparmeters.yml
 def _make_cnn_cfg(cfg: dict) -> dict:
+    cfg = cfg or {}
     return {
         "input_channels": int(cfg.get("input_channels", 4)),
         "conv_channels": cfg.get("conv_channels", [32, 64, 64]),
@@ -19,6 +20,7 @@ def _make_cnn_cfg(cfg: dict) -> dict:
         "hidden_size": int(cfg.get("hidden_size", 512)),
         "activation": str(cfg.get("activation", "relu")).lower(),
         "head_hidden": int(cfg.get("head_hidden", 256)),
+        "pool_out": tuple(cfg.get("pool_out", (7, 7))),
     }
 
 class CNNEncoder(nn.Module):
@@ -31,6 +33,7 @@ class CNNEncoder(nn.Module):
         paddings = cfg["paddings"]
         hidden_size = int(cfg["hidden_size"])
         activation = str(cfg.get("activation", "relu")).lower()
+        pool_out = tuple(cfg.get("pool_out", (7, 7)))
 
         if activation == "relu":
             act_fn = nn.ReLU
@@ -51,12 +54,12 @@ class CNNEncoder(nn.Module):
             layer_init(layer) if isinstance(layer, nn.Conv2d) else layer 
             for layer in layers
         ])
+
+        self.pool = nn.AdaptiveAvgPool2d(pool_out)
         self.flatten = nn.Flatten()
-        
-        with torch.no_grad():
-            dummy_input = torch.zeros(1, int(cfg["input_channels"]), 84, 84)
-            n_flatten = self.conv(dummy_input).view(1, -1).shape[1]
-            
+
+        out_ch_last = int(conv_channels[-1]) if len(conv_channels) > 0 else in_channels
+        n_flatten = int(out_ch_last) * int(pool_out[0]) * int(pool_out[1])
         self.fc = layer_init(nn.Linear(n_flatten, hidden_size))
         self.act = act_fn()
 
@@ -69,6 +72,7 @@ class CNNEncoder(nn.Module):
         else:
             x = x.float()
         x = self.conv(x)
+        x = self.pool(x)
         x = self.flatten(x)
         x = self.fc(x)
         x = self.act(x)
