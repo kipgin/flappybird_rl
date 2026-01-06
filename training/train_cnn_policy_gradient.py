@@ -194,7 +194,7 @@ def train_cnn_policy_gradient():
             torch.xpu.synchronize()
     print("Warm-up done.", flush=True)
 
-    optimizer = agent.optimizer
+    # optimizer = agent.optimizer
 
     buffer = RolloutBuffer(
         num_steps=num_steps,

@@ -52,11 +52,13 @@ class FixFlappyStepAPI(gym.Wrapper):
         return out 
     
 class ActionRepeat(gym.Wrapper):
-    def __init__(self, env, skip: int = 4, fps: int = 30):
+    def __init__(self, env, skip: int = 4, fps: int = 30, show_window: bool = True, window_name: str = "Flappy Bird"):
         super().__init__(env)
         self.skip = int(skip)
         self.fps = fps
         self.frame_duration = 1.0 / fps
+        self.show_window = bool(show_window)
+        self.window_name = str(window_name)
 
     def step(self, action):
         total_reward = 0.0
@@ -68,13 +70,14 @@ class ActionRepeat(gym.Wrapper):
             
             obs, reward, terminated, truncated, info = self.env.step(action)
             total_reward += float(reward)
-            
-            frame = self.env.render()
-            if frame is not None:
-                view_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-                cv2.imshow("Flappy Bird", view_frame)
-                if (cv2.waitKey(int(self.frame_duration * 1000)) & 0xFF) == ord("q"):
-                    terminated = True
+
+            if self.show_window:
+                frame = self.env.render()
+                if frame is not None:
+                    view_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                    cv2.imshow(self.window_name, view_frame)
+                    if (cv2.waitKey(int(self.frame_duration * 1000)) & 0xFF) == ord("q"):
+                        terminated = True
 
             if terminated or truncated:
                 break
@@ -92,7 +95,7 @@ class RenderObservation(ObservationWrapper):
         return frame
 
 
-def make_env(env_id: str, cfg: dict, seed: int, num_frames: int, record_video_dir: str | None):
+def make_env(env_id: str, cfg: dict, seed: int, num_frames: int, record_video_dir: str | None, show_window: bool = True):
     env_make_params = dict(cfg.get("env_make_params", {}) or {})
     env_make_params.setdefault("use_lidar", False)
     # env = gym.make(env_id, render_mode="rgb_array", **env_make_params)
@@ -102,7 +105,7 @@ def make_env(env_id: str, cfg: dict, seed: int, num_frames: int, record_video_di
 
     frame_skip = int(cfg.get("frame_skip", 1))
     fps = env.metadata.get("render_fps", 30)
-    env = ActionRepeat(env, skip=frame_skip, fps=fps)
+    env = ActionRepeat(env, skip=frame_skip, fps=fps, show_window=show_window)
 
     if record_video_dir:
         os.makedirs(record_video_dir, exist_ok=True)
@@ -222,6 +225,7 @@ def main():
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--deterministic", action="store_true")
     ap.add_argument("--force-cpu", action="store_true")
+    ap.add_argument("--no-view", action="store_true", help="Run headless (no cv2 window / waitKey). Faster.")
     ap.add_argument("--record-video-dir", type=str, default=None)
     args = ap.parse_args()
 
@@ -233,7 +237,14 @@ def main():
     env_id = cfg.get("env_id", "FlappyBird-v0")
     num_frames = int(cfg.get("frame_stack", 4))
 
-    env = make_env(env_id, cfg, seed=args.seed, num_frames=num_frames, record_video_dir=args.record_video_dir)
+    env = make_env(
+        env_id,
+        cfg,
+        seed=args.seed,
+        num_frames=num_frames,
+        record_video_dir=args.record_video_dir,
+        show_window=(not args.no_view),
+    )
 
     obs, _ = env.reset(seed=args.seed)
     obs_shape = tuple(np.array(obs).shape)  

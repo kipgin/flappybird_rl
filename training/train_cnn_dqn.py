@@ -251,22 +251,6 @@ def train_cnn_dqn():
     optimizer = torch.optim.Adam(agent.parameters(), lr=learning_rate_a)
     loss_fn = torch.nn.MSELoss()
 
-    # Load checkpoint to continue training (optional)
-    resume_path = "flappy_bird_cnn_dqn_checkpoints/best_model_20260105_091602.pth"
-    loaded_step = 0
-    if resume_path and os.path.isfile(resume_path):
-        ckpt = torch.load(resume_path, map_location="cpu")
-        agent.load_state_dict(ckpt["model_state_dict"])
-        target_agent.load_state_dict(agent.state_dict())
-        target_agent.eval()
-        optimizer.load_state_dict(ckpt["optimizer_state_dict"])
-        for state in optimizer.state.values():
-            for k, v in state.items():
-                if torch.is_tensor(v):
-                    state[k] = v.to(DEVICE, non_blocking=True)
-        loaded_step = int(ckpt.get("epoch", 0))
-        print(f"Loaded checkpoint: {resume_path} (step={loaded_step})")
-
     time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_every_steps = 10000
     ckpt_every_steps =  100000
@@ -285,14 +269,9 @@ def train_cnn_dqn():
     print(f"Bat dau train CNN+DQN voi game: {env_id}")
     print(f"Episodes: {total_timesteps}, Replay: {replay_memory_size}, Batch: {mini_batch_size}, Device: {DEVICE}")
 
-    global_step = loaded_step
+    global_step = 0
 
     exploration_steps = int(total_timesteps * 0.2)
-
-    if global_step < exploration_steps:
-        epsilon = epsilon_init - (epsilon_init - epsilon_min) * (global_step / exploration_steps)
-    else:
-        epsilon = epsilon_min
 
     while global_step < total_timesteps:
         #epsilon-greedy
