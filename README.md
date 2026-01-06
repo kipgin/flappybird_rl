@@ -15,6 +15,9 @@
 
 Train and deploy RL agents to play Flappy Bird using PyTorch on Windows.
 
+## Link video demo:
+https://youtu.be/ydRKK5eUXRg
+
 ## Requirements
 
 ```bash
